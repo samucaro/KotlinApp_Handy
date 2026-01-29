@@ -8,7 +8,7 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import androidx.sqlite.db.SupportSQLiteOpenHelper
 import com.unibo.handy.HandyApp
-import com.unibo.handy.data.UserRepository
+import com.unibo.handy.data.repository.UserRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -33,7 +33,7 @@ class HomeVM(private val userRepository: UserRepository) : ViewModel() {
         val Factory: ViewModelProvider.Factory = viewModelFactory {
             initializer {
                 val application = (this[APPLICATION_KEY] as HandyApp)
-                HomeVM(application.repository)
+                HomeVM(application.userRepository)
             }
         }
     }

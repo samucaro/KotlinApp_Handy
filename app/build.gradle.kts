@@ -48,20 +48,18 @@ dependencies {
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)
-
-    // ICON
     implementation(libs.androidx.compose.material3)
 
-    // ROOM DATABASE
+    // --- ROOM DATABASE ---
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
     ksp(libs.androidx.room.compiler)
 
-    // RETROFIT & GSON (HTTP API)
+    // --- RETROFIT & GSON (HTTP API) ---
     implementation(libs.retrofit2)
     implementation(libs.retrofit2.converter.gson)
 
-    //OKHTTP (WebSocket)
+    // --- OKHTTP (WebSocket) ---
     implementation(libs.com.squareup.okhttp3)
 
     // --- NAVIGATION COMPOSE ---
@@ -71,8 +69,10 @@ dependencies {
     implementation(libs.play.services.location)
     implementation(libs.play.services.maps)
     implementation(libs.maps.compose)
+    implementation(libs.kotlinx.coroutines.play.services)
 
-    // BACKGROUND
+
+    // --- BACKGROUND ---
     implementation(libs.androidx.work.runtime.ktx)
 
     // --- TESTING ---
