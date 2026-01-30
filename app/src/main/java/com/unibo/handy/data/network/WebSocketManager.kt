@@ -1,4 +1,4 @@
-package com.unibo.handy.data
+package com.unibo.handy.data.network
 
 import android.util.Log
 import com.google.gson.Gson

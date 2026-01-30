@@ -4,7 +4,7 @@ import android.app.Application
 import com.unibo.handy.data.db.HandyDB
 import com.unibo.handy.data.repository.UserRepository
 import com.unibo.handy.data.LocationClientSensor
-import com.unibo.handy.data.WebSocketManager
+import com.unibo.handy.data.network.WebSocketManager
 
 class HandyApp : Application() {
     val db by lazy { HandyDB.getDatabase(this) }
@@ -16,7 +16,8 @@ class HandyApp : Application() {
             db.userDao(),
             db.storedClientDao(),
             webSocketManager = webSocketManager,
-            locationClient = locationClient
+            locationClient = locationClient,
+            apiService = TODO()
         )
     }
 }

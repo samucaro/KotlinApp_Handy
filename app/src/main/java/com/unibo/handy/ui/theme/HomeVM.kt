@@ -19,15 +19,16 @@ class HomeVM(private val userRepository: UserRepository) : ViewModel() {
     val userId: StateFlow<String> = _userId.asStateFlow()
 
     init {
-        loadUser()
+        //loadUser()
     }
 
+    /*
     private fun loadUser() {
         viewModelScope.launch {
             val user = userRepository.getOrCreateUser()
             _userId.value = user.userId
         }
-    }
+    }*/
 
     companion object {
         val Factory: ViewModelProvider.Factory = viewModelFactory {

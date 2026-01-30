@@ -1,0 +1,16 @@
+package com.unibo.handy.data.network
+
+import com.unibo.handy.data.network.dto.HeartBeatDTO
+import com.unibo.handy.data.network.dto.RegistrationDTO
+import retrofit2.http.POST
+import retrofit2.http.Body
+import retrofit2.Response
+
+
+interface ServiceAPI {
+    @POST("/register_profile")
+    suspend fun registerProfile(@Body payload: RegistrationDTO): Response<Unit>
+
+    @POST("/heartbeat")
+    suspend fun sendHeartbeat(@Body payload: HeartBeatDTO): Response<Unit>
+}

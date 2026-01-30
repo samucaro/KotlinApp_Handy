@@ -1,10 +1,10 @@
-package com.unibo.handy.data.dao
+package com.unibo.handy.data.db.dao
 
 import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
-import com.unibo.handy.data.entity.StoredClientEntity
+import com.unibo.handy.data.db.entity.StoredClientEntity
 
 @Dao
 interface StoredClientDAO {

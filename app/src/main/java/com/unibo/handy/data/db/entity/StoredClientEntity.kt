@@ -1,4 +1,4 @@
-package com.unibo.handy.data.entity
+package com.unibo.handy.data.db.entity
 
 import androidx.room.Entity
 import androidx.room.PrimaryKey
@@ -7,8 +7,8 @@ import androidx.room.PrimaryKey
 data class StoredClientEntity(
     @PrimaryKey val clientId: String,
 
-    val blurredX: Long,
-    val blurredY: Long,
+    val reblurredX: Long,
+    val reblurredY: Long,
     val category: String,
 
     val timestamp: Long = System.currentTimeMillis()

@@ -4,10 +4,10 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
-import com.unibo.handy.data.dao.StoredClientDAO
-import com.unibo.handy.data.entity.StoredClientEntity
-import com.unibo.handy.data.entity.UserEntity
-import com.unibo.handy.data.dao.UserDAO
+import com.unibo.handy.data.db.dao.StoredClientDAO
+import com.unibo.handy.data.db.entity.StoredClientEntity
+import com.unibo.handy.data.db.entity.UserEntity
+import com.unibo.handy.data.db.dao.UserDAO
 
 @Database(entities = [UserEntity::class, StoredClientEntity::class], version = 2, exportSchema = true)
 abstract class HandyDB : RoomDatabase() {
