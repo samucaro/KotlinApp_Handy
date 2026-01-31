@@ -33,7 +33,7 @@ object PrivacyEngine {
     data class UpdateProfileData(
         val betaMinusX: Long, // (x - rX) mod P
         val betaMinusY: Long, // (y - rY) mod P
-        val plainNoise: Long, // r (Da cifrare con Paillier in futuro)
+        val encryptedR: Long // personalizedBlur (Da cifrare con Paillier)
     )
 
     /**
@@ -43,33 +43,33 @@ object PrivacyEngine {
     data class HelpRequestData(
         val betaPlusX: Long, // (x + rX) mod P
         val betaPlusY: Long, // (y + rY) mod P
-        val plainNoiseX: Long, // rX (Da cifrare con Paillier in futuro)
+        val plainNoiseX: Long, // rX (Da cifrare con Paillier)
         val plainNoiseY: Long  // rY
     )
 
     // --- FUNZIONI CORE (ALGORITMI DEL PAPER) ---
     /**
-     * FASE 1: UPDATE (Ruolo: Data Owner / Aiutante)
-     * Implementa la logica: β- = (Coordinate - Rumore) mod P
+     * FASE 2: PROFILE-UPDATE-REQUEST (Fig. 4b paper)
+     * Implementa la logica: β- = (Coordinate - Blur) mod P
      */
-    fun createUpdateProfile(lat: Double, lon: Double): UpdateProfileData {
+    fun createEncryptedData(lat: Double, lon: Double): UpdateProfileData {
         // 1. Conversione in Fixed Point (Interi Long)
         val pX = toFixedPoint(lat)
         val pY = toFixedPoint(lon)
 
         // 2. Generazione Rumore Casuale (r)
-        val r = generateNoise()
+        val personalizedBlur = generateNoise()
 
         // 3. Calcolo Beta Minus (Sottrazione Modulare)
         // Formula: β- = (p - r) mod P
-        val blurredX = modSub(pX, r)
-        val blurredY = modSub(pY, r)
+        val blurredX = modSub(pX, personalizedBlur)
+        val blurredY = modSub(pY, personalizedBlur)
 
-        return UpdateProfileData(blurredX, blurredY, r)
+        return UpdateProfileData(blurredX, blurredY, personalizedBlur)
     }
 
     /**
-     * FASE 2: REQUEST (Ruolo: Query User / Richiedente)
+     * FASE 3: HELP-REQUEST (Ruolo: Query User / Richiedente)
      * Implementa la logica: β+ = (Coordinate + Rumore) mod P
      */
     fun createHelpRequest(lat: Double, lon: Double): HelpRequestData {

@@ -11,6 +11,10 @@ import com.unibo.handy.data.db.entity.StoredClientEntity
 import com.unibo.handy.data.network.ServiceAPI
 import com.unibo.handy.data.network.dto.HeartBeatDTO
 import com.unibo.handy.data.network.dto.RegistrationDTO
+import com.unibo.handy.data.repository.strategy.ComputeMatchStrategy
+import com.unibo.handy.data.repository.strategy.MessageStrategy
+import com.unibo.handy.data.repository.strategy.StoreProfileStrategy
+import com.unibo.handy.domain.MatchingService
 import com.unibo.handy.domain.PrivacyEngine
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -24,10 +28,29 @@ class UserRepository(
     private val webSocketManager: WebSocketManager,
     private val apiService: ServiceAPI,
     // Dati sensori
-    private val locationClient: LocationClientSensor
+    private val locationClient: LocationClientSensor,
+    // Servizio di matching
+    private val matchingService: MatchingService
 ) {
     val currentUserFlow: Flow<UserEntity?> = userDao.getUserFlow()
     private val gson = Gson()
+    private val strategies: Map<String, MessageStrategy> = mapOf(
+        "STORE_PROFILE" to StoreProfileStrategy(storedClientDao),
+        "COMPUTE_MATCH" to ComputeMatchStrategy(matchingService, webSocketManager, gson)
+    )
+
+    suspend fun startListeningForJobs() {
+        // Recuperiamo il nostro ID sessione
+        val user = userDao.getUserSnapshot() ?: return
+
+        // Connettiamo il WebSocket
+        webSocketManager.connect(user.userId)
+
+        // Ascoltiamo i messaggi in arrivo
+        webSocketManager.incomingMessages.collect { jsonString ->
+            handleServerMessage(jsonString)
+        }
+    }
 
     // Metodo di semplice registrazione/aggiornamento nel sistema (profile_update_request)
     suspend fun updateUserProfile(username: String, category: String, isHelper: Boolean) {
@@ -75,7 +98,8 @@ class UserRepository(
         }
     }
 
-    // Metodo di invio del Heartbeat al server (profile_update_request)
+    /** (Fase 2: Profile-Update-Request Fig. 4b paper)*/
+    // Metodo di invio del Heartbeat al server
     suspend fun sendHeartbeat() = withContext(Dispatchers.IO) {
         // 1. CONTROLLO DI SICUREZZA
         val user = userDao.getUserSnapshot()
@@ -84,15 +108,15 @@ class UserRepository(
             return@withContext
         }
 
-        // 2. RECUPERO GPS (Solo se siamo attivi)
+        // 2. RECUPERO GPS
         val location = locationClient.getCurrentLocation()
         if (location == null) {
-            Log.w("UserRepository", "Impossibile ottenere la posizione GPS.")
+            Log.w("UserRepository", "Impossible to get GPS position.")
             return@withContext
         }
 
         // 3. MATEMATICA (Blurring)
-        val blurredData = PrivacyEngine.createUpdateProfile(
+        val blurredData = PrivacyEngine.createEncryptedData(
             lat = location.latitude,
             lon = location.longitude
         )
@@ -103,109 +127,32 @@ class UserRepository(
                 clientId = user.userId,
                 blurredX = blurredData.betaMinusX,
                 blurredY = blurredData.betaMinusY,
-                encryptedBlur = blurredData.plainNoise //per ora non è cifrato
+                encryptedBlur = blurredData.encryptedR //per ora non è cifrato
             )
 
             val response = apiService.sendHeartbeat(dto)
             if (response.isSuccessful) {
-                Log.d("UserRepository", "Heartbeat inviato! Posizione aggiornata.")
+                Log.d("UserRepository", "Heartbeat sent! Position updated.")
             }
         } catch (e: Exception) {
-            Log.e("UserRepository", "Fallimento invio heartbeat", e)
+            Log.e("UserRepository", "Heartbeat sent failed", e)
         }
     }
 
-    suspend fun startListeningForJobs() {
-        // Recuperiamo il nostro ID sessione
-        val user = userDao.getUserSnapshot() ?: return
-
-        // Connettiamo il WebSocket
-        webSocketManager.connect(user.userId)
-
-        // Ascoltiamo i messaggi in arrivo
-        webSocketManager.incomingMessages.collect { jsonString ->
-            handleServerMessage(jsonString)
-        }
-    }
-
-    // Gestore flusso dati dalla rete
+    // Gestore flusso dati dalla rete gestita da un secondo thread dedicato all'I/O
     private suspend fun handleServerMessage(json: String) = withContext(Dispatchers.IO) {
         try {
             // 1. Parsing del json
-            val baseMessage = gson.fromJson(json, Map::class.java)
-            val type = baseMessage["type"] as? String
+            val fullMessage = gson.fromJson(json, Map::class.java) as Map<*, *>
+            val type = fullMessage["type"] as? String
 
-            when (type) {
-                // CASO A: Il server invia un profilo da custodire
-                "STORE_PROFILE" -> {
-                    val payload = baseMessage["payload"] as Map<*, *>
-                    handleStoreCommand(payload)
-                }
+            // 2. Recupero Strategy corretta
+            // (salvataggio->profile-update-request o matching->help-request)
+            val strategy = strategies[type]
 
-                /* CASO B: Un utente ha chiesto aiuto e quindi fare il matching
-                "COMPUTE_MATCH" -> {
-                    val requesterData = baseMessage["requester_data"] as Map<*, *>
-                    handleComputeMatch(requesterData)
-                }*/
-            }
+            strategy?.handle(fullMessage) ?: Log.w("Repo", "Strategy not found: $type")
         } catch (e: Exception) {
             Log.e("UserRepository", "Parsing error from server message", e)
         }
     }
-
-    private suspend fun handleStoreCommand(payload: Map<*, *>) {
-        val entity = StoredClientEntity(
-            clientId = payload["client_Id"] as String,
-            reblurredX = (payload["reblurred_x"] as Double).toLong(),
-            reblurredY = (payload["reblurred_y"] as Double).toLong(),
-            category = (payload["category"] as Double).toString()
-        )
-        storedClientDao.saveProfile(entity)
-        Log.d("UserRepository", "${entity.clientId.take(5)}'s profile saved successfully.")
-    }
-
-    /*
-    private suspend fun handleComputeMatch(requesterData: Map<*, *>) {
-        val targetUuid = requesterData["target_uuid"] as? String ?: return
-
-        // 1. Recuperiamo il profilo di "B" dal nostro DB locale
-        val storedProfile = storedClientDao.getProfile(targetUuid) ?: return
-
-        // 2. Estraiamo i dati del richiedente (β+) dalla Tupla ricevuta
-        val betaPlusX = (requesterData["beta_plus_x"] as Double).toLong()
-        val betaPlusY = (requesterData["beta_plus_y"] as Double).toLong()
-        val tolerance = (requesterData["tolerance"] as Double).toLong()
-
-        // 3. CALCOLO MATEMATICO (PrivacyEngine)
-        // Utilizziamo le coordinate memorizzate (β-) e quelle ricevute (β+)
-        val isMatch = PrivacyEngine.checkProximity(
-            betaPlusX = betaPlusX,
-            betaPlusY = betaPlusY,
-            betaMinusX = storedProfile.reblurredX,
-            betaMinusY = storedProfile.reblurredY,
-            tolerance = tolerance
-        )
-
-        if (isMatch) {
-            Log.d("UserRepository", "!!! MATCH TROVATO per $targetUuid !!!")
-            // Notifichiamo il server tramite WebSocket
-            val matchFoundMsg = mapOf(
-                "type" to "MATCH_FOUND",
-                "target_uuid" to targetUuid
-            )
-            webSocketManager.sendMessage(gson.toJson(matchFoundMsg))
-        }
-    }
-
-    suspend fun getOrCreateUser(): UserEntity {
-        val existingUser = userDao.getLocalUser()
-
-        return if (existingUser != null) {
-            existingUser
-        } else {
-            val newUser = UserEntity()
-            userDao.insertUser(newUser)
-            newUser
-        }
-    }*/
 }

@@ -17,7 +17,8 @@ class HandyApp : Application() {
             db.storedClientDao(),
             webSocketManager = webSocketManager,
             locationClient = locationClient,
-            apiService = TODO()
+            apiService = TODO(),
+            matchingService = TODO()
         )
     }
 }
