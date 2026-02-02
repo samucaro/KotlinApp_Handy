@@ -1,25 +1,32 @@
 package com.unibo.handy.domain
 
 import com.unibo.handy.data.db.dao.StoredClientDAO
+import com.unibo.handy.data.network.dto.TuplaDTO
 
 class MatchingService(
-    private val storedClientDao: StoredClientDAO,
-    private val privacyEngine: PrivacyEngine
+    private val storedClientDao: StoredClientDAO
 ) {
     suspend fun verifyMatch(
-        targetId: String,
-        requestProfile: Long, // rblurredx, reblurredy, category
-        encryptedBlurSum: Long,
-        specificSumBlur: Long,
-        tolerance: Long
+        tupla: TuplaDTO
     ): Boolean {
-        // 1. Recupero dati dal DB (Lavoro sporco di I/O)
-        val storedProfile = storedClientDao.getProfile(targetId) ?: return false
+        // 1. Uso T2 (Target ID) per cercare nel DB locale
+        val storedEntity = storedClientDao.getProfile(tupla.t2TargetId)
+        if (storedEntity == null) {
+            // Non custodisce questo utente, ignora la richiesta
+            return false
+        }
 
-        // 2. Orchestrazione del calcolo (Delega alla calcolatrice pura)
+        val storedProfile = storedEntity.profile
+
+        // 2. Orchestrazione del calcolo
         return PrivacyEngine.computeMatching(
-            requestProfile = requestProfile,
-            tolerance = tolerance
+            t3 = tupla.t3BetaPlusX,
+            t4 = tupla.t4BetaPlusY,
+            t5 = tupla.t5SumUserBlur,
+            t6 = tupla.t6SumServerBlur,
+            t7 = tupla.t7Tolerance,
+            storedX = storedProfile.reblurredX,
+            storedY = storedProfile.reblurredY
         )
     }
 }

@@ -2,6 +2,7 @@ package com.unibo.handy.domain
 
 import java.security.SecureRandom
 import kotlin.math.abs
+import kotlin.math.sqrt
 
 /**
  * Motore crittografico che implementa la logica di Blurring di SamaritanCloud.
@@ -43,8 +44,8 @@ object PrivacyEngine {
     data class HelpRequestData(
         val betaPlusX: Long, // (x + rX) mod P
         val betaPlusY: Long, // (y + rY) mod P
-        val plainNoiseX: Long, // rX (Da cifrare con Paillier)
-        val plainNoiseY: Long  // rY
+        val encryptedR: Long, // rX (Da cifrare con Paillier)
+        val encryptedTol: Long
     )
 
     // --- FUNZIONI CORE (ALGORITMI DEL PAPER) ---
@@ -69,66 +70,78 @@ object PrivacyEngine {
     }
 
     /**
-     * FASE 3: HELP-REQUEST (Ruolo: Query User / Richiedente)
+     * FASE 3: HELP-REQUEST (Fig. 5b paper)
      * Implementa la logica: β+ = (Coordinate + Rumore) mod P
      */
-    fun createHelpRequest(lat: Double, lon: Double): HelpRequestData {
+    fun createHelpRequest(lat: Double, lon: Double, tol: Double): HelpRequestData {
         // 1. Conversione in Fixed Point
         val pX = toFixedPoint(lat)
         val pY = toFixedPoint(lon)
 
         // 2. Generazione Rumore Casuale (r)
-        val rX = generateNoise()
-        val rY = generateNoise()
+        val personalizedBlur = generateNoise() //Da cifrare con Paillier
 
         // 3. Calcolo Beta Plus (Addizione Modulare)
         // Formula: β+ = (p + r) mod P
-        val betaPlusX = modAdd(pX, rX)
-        val betaPlusY = modAdd(pY, rY)
+        val blurredX = modAdd(pX, personalizedBlur)
+        val blurredY = modAdd(pY, personalizedBlur)
 
-        return HelpRequestData(betaPlusX, betaPlusY, rX, rY)
+        // 4. Calcolo tolleranza cifrata
+        // Formula:
+        val tolerance = tol.toLong() //Da cifrare con Paillier
+
+        return HelpRequestData(blurredX, blurredY, personalizedBlur, tolerance)
     }
 
     /**
      * FASE 3: MATCHING (Ruolo: Service Client)
      * Verifica se la distanza è < tolleranza rimuovendo il rumore.
-     *
-     * @param betaPlus Coordinata ricevuta dalla richiesta (β+)
-     * @param betaMinus Coordinata salvata nel DB (β-)
-     * @param serverCorrectionTerm Il valore inviato dal server (r_req + r_target + cs_r)
-     * @param myCsr Il "Client Specific Random" che il Service Client possiede (cs_r)
-     * @param toleranceSquared Tolleranza al quadrato (già convertita in unità fisse)
      */
-    fun checkDistance(
-        betaPlus: Long,
-        betaMinus: Long,
-        serverCorrectionTerm: Long,
-        myCsr: Long,
-        toleranceSquared: Long
+    fun computeMatching(
+        // Dati dalla Tupla
+        t3: Long, t4: Long, // Beta+ X, Y; saranno con Paillier
+        t5: Long, // Somma Blur Utenti, saranno con Paillier
+        t6: Long, // Somma Blur Server
+        t7: Long, // Tolleranza sarà con Paillier
+
+        // Dati dal DB Locale
+        storedX: Long, // Coordinata X reblurrata del client posseduto sarà con Paillier
+        storedY: Long  // Coordinata Y reblurrata del client posseduto sarà con Paillier
     ): Boolean {
-        // La formula matematica del paper per ottenere la distanza pulita (Delta):
-        // Delta = (β+ - β-) - (serverCorrectionTerm - cs_r)
+        // --- CALCOLO ASSE X ---
+        // Formula: (T3 - StoredX - T5 - T6)
 
-        // 1. Calcolo la differenza grezza tra le coordinate offuscate
-        // rawDiff = (x_req + r_req) - (x_target - r_target)
-        val rawDiff = modSub(betaPlus, betaMinus)
+        // 1. Differenza tra le coordinate offuscate (T3 - StoredX)
+        val rawDiffX = modSub(t3, storedX)
 
-        // 2. Calcolo il rumore totale che il server ha aggregato (ma che devo pulire dal mio cs_r)
-        // noiseInfo = (r_req + r_target + cs_r) - cs_r  => Rimane (r_req + r_target)
-        val totalNoise = modSub(serverCorrectionTerm, myCsr)
+        // 2. Rimozione dei rumori ( - T5 - T6 )
+        // Rimuovo il blur del server
+        var cleanDeltaX = modSub(rawDiffX, t5)
+        // Rimuovo il blur degli utenti
+        cleanDeltaX = modSub(cleanDeltaX, t6)
 
-        // 3. Sottraggo il rumore totale dalla differenza grezza
-        // cleanDiff = rawDiff - totalNoise
-        // cleanDiff = (x_req - x_target + r_req + r_target) - (r_req + r_target)
-        // cleanDiff = x_req - x_target (Distanza Reale!)
-        val cleanDelta = modSub(rawDiff, totalNoise)
+        // 3. Gestione distanza minima sull'anello (Wrapping)
+        //val metricX = minMetricDistance(cleanDeltaX)
 
-        // 4. Gestione della distanza minima sull'anello (Modular Distance)
-        // Se P=100, la distanza tra 98 e 2 è 4, non 96.
-        val metricDistance = minMetricDistance(cleanDelta)
 
-        // 5. Verifica soglia (Usiamo i quadrati per evitare radici quadrate lente)
-        return (metricDistance * metricDistance) <= toleranceSquared
+        // --- CALCOLO ASSE Y ---
+        // Formula: (T4 - StoredY - T5 - T6)
+
+        val rawDiffY = modSub(t4, storedY)
+        var cleanDeltaY = modSub(rawDiffY, t5)
+        cleanDeltaY = modSub(cleanDeltaY, t6)
+
+        //val metricY = minMetricDistance(cleanDeltaY)
+
+
+        // --- CALCOLO DISTANZA EUCLIDEA ---
+        // Sqrt( x^2 + y^2 )
+        val distSquared = (cleanDeltaX * cleanDeltaX) + (cleanDeltaY * cleanDeltaY)
+        val distance = sqrt(distSquared.toDouble())
+
+        // --- VERIFICA SOGLIA ---
+        // Distanza <= T7
+        return distance <= t7
     }
 
     // --- FUNZIONI MATEMATICHE DI SUPPORTO ---

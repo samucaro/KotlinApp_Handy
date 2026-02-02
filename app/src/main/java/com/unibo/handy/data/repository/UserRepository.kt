@@ -7,9 +7,9 @@ import com.unibo.handy.data.db.dao.StoredClientDAO
 import com.unibo.handy.data.db.dao.UserDAO
 import com.unibo.handy.data.db.entity.UserEntity
 import com.unibo.handy.data.network.WebSocketManager
-import com.unibo.handy.data.db.entity.StoredClientEntity
 import com.unibo.handy.data.network.ServiceAPI
 import com.unibo.handy.data.network.dto.HeartBeatDTO
+import com.unibo.handy.data.network.dto.HelpRequestDTO
 import com.unibo.handy.data.network.dto.RegistrationDTO
 import com.unibo.handy.data.repository.strategy.ComputeMatchStrategy
 import com.unibo.handy.data.repository.strategy.MessageStrategy
@@ -36,6 +36,8 @@ class UserRepository(
     private val gson = Gson()
     private val strategies: Map<String, MessageStrategy> = mapOf(
         "STORE_PROFILE" to StoreProfileStrategy(storedClientDao),
+        "UPDATE_PROFILE" to StoreProfileStrategy(storedClientDao),
+        "UPDATE_RATINGDATA" to StoreProfileStrategy(storedClientDao),
         "COMPUTE_MATCH" to ComputeMatchStrategy(matchingService, webSocketManager, gson)
     )
 
@@ -53,23 +55,21 @@ class UserRepository(
     }
 
     // Metodo di semplice registrazione/aggiornamento nel sistema (profile_update_request)
-    suspend fun updateUserProfile(username: String, category: String, isHelper: Boolean) {
+    suspend fun updateUserProfile(username: String, email: String, psw: String, category: String) {
         // Verifica esistenza utente nel DB locale
         // Se esiste lo aggiorna, altrimenti crea uno nuovo
         val currentSnap = userDao.getUserSnapshot()
         val userId = currentSnap?.userId ?: java.util.UUID.randomUUID().toString()
-        val newUser = UserEntity(
-            userId = userId,
-            username = username,
-            category = category,
-            helpModeActive = isHelper
-        )
+        val isHelper = currentSnap?.helpModeActive ?: false
+
+        val newUser = UserEntity(userId, username, email, psw, category)
         userDao.insertUser(newUser)
 
-        // Registra/Aggiorna il profilo nel server
+        // Registra/Aggiorna il profilo nel server al quale servono solo 3 dei 7 campi
         registerOnServer(userId, category, isHelper)
     }
 
+    // Metodo per aggiornare lo stato di modalità di aiuto
     suspend fun setHelperMode(isActive: Boolean) = withContext(Dispatchers.IO) {
         val user = userDao.getUserSnapshot() ?: return@withContext
         // Aggiorna solo il flag nel DB. La UI reagirà automaticamente grazie al Flow.
@@ -98,8 +98,11 @@ class UserRepository(
         }
     }
 
-    /** (Fase 2: Profile-Update-Request Fig. 4b paper)*/
-    // Metodo di invio del Heartbeat al server
+    /**
+      *(Fase 2: Profile-Update-Request Fig. 4b paper)
+      *Solo per Helper client
+     **/
+    // Metodo di invio del Heartbeat al server valido solo per le coordinate GPS
     suspend fun sendHeartbeat() = withContext(Dispatchers.IO) {
         // 1. CONTROLLO DI SICUREZZA
         val user = userDao.getUserSnapshot()
@@ -122,11 +125,12 @@ class UserRepository(
         )
 
         // 4. INVIO AL SERVER
+        // Rispetto al paper vengono inviati solo gli aggiornamenti periodici della posizione
         try {
             val dto = HeartBeatDTO(
                 clientId = user.userId,
-                blurredX = blurredData.betaMinusX,
-                blurredY = blurredData.betaMinusY,
+                blurredData.betaMinusX,
+                blurredData.betaMinusY,
                 encryptedBlur = blurredData.encryptedR //per ora non è cifrato
             )
 
@@ -154,5 +158,37 @@ class UserRepository(
         } catch (e: Exception) {
             Log.e("UserRepository", "Parsing error from server message", e)
         }
+    }
+
+    suspend fun sendHelpRequest(category: String,  tolerance: Double) {
+        val user = userDao.getUserSnapshot() ?: throw IllegalStateException("Utente non loggato!")
+
+        val location = locationClient.getCurrentLocation()
+        if (location == null) {
+            Log.w("UserRepository", "Impossible to get GPS position.")
+            return
+        }
+
+        // 3. Offuscamento (Uso PrivacyEngine - Fase REQUEST)
+        val blurredData = PrivacyEngine.createHelpRequest(
+            lat = location.latitude,
+            lon = location.longitude,
+            tol = tolerance
+        )
+
+        // 4. Creazione DTO
+        val dto = HelpRequestDTO(
+            clientId = user.userId,
+            category = category,
+            blurredX = blurredData.betaPlusX,
+            blurredY = blurredData.betaPlusY,
+            encryptedR = blurredData.encryptedR, //Da cifrare con Paillier
+            encryptedTol = blurredData.encryptedTol //Da cifrare con Paillier
+        )
+
+        // 5. Invio al Server
+        // Il server riceverà questo DTO e lo inoltrerà ai Service Clients
+        // che custodiscono gli idraulici per fare il matching.
+        apiService.sendHelpRequest(dto)
     }
 }

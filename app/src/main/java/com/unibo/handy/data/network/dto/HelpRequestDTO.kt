@@ -1,11 +1,12 @@
 package com.unibo.handy.data.network.dto
 
 import com.google.gson.annotations.SerializedName
-import com.unibo.handy.data.db.entity.ProfileData
 
-data class HeartBeatDTO(
+data class HelpRequestDTO(
     @SerializedName("clientId") val clientId: String,
+    @SerializedName("category") val category: String,
     @SerializedName("blurredX") val blurredX: Long,
     @SerializedName("blurredY") val blurredY: Long,
-    @SerializedName("encryptedBlur") val encryptedBlur: Long,
+    @SerializedName("encryptedR") val encryptedR: Long,
+    @SerializedName("encryptedTol") val encryptedTol: Long,
 )

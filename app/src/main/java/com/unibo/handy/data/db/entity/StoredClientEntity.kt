@@ -1,5 +1,6 @@
 package com.unibo.handy.data.db.entity
 
+import androidx.room.Embedded
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 
@@ -7,9 +8,5 @@ import androidx.room.PrimaryKey
 data class StoredClientEntity(
     @PrimaryKey val clientId: String,
 
-    val reblurredX: Long,
-    val reblurredY: Long,
-    val category: String,
-
-    val timestamp: Long = System.currentTimeMillis()
+    @Embedded val profile: ProfileData,
 )

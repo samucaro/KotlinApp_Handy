@@ -1,6 +1,7 @@
 package com.unibo.handy.data.network
 
 import com.unibo.handy.data.network.dto.HeartBeatDTO
+import com.unibo.handy.data.network.dto.HelpRequestDTO
 import com.unibo.handy.data.network.dto.RegistrationDTO
 import retrofit2.http.POST
 import retrofit2.http.Body
@@ -13,4 +14,8 @@ interface ServiceAPI {
 
     @POST("/heartbeat")
     suspend fun sendHeartbeat(@Body payload: HeartBeatDTO): Response<Unit>
+
+    @POST("/help_request")
+    suspend fun sendHelpRequest(@Body payload: HelpRequestDTO): Response<Unit>
+
 }

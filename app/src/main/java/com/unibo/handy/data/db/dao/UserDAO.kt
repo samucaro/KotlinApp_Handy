@@ -19,6 +19,11 @@ interface UserDAO {
     @Query("SELECT * FROM user LIMIT 1")
     suspend fun getUserSnapshot(): UserEntity?
 
+    @Query("UPDATE user SET helpModeActive = :isActive WHERE userId = :clientId")
+    suspend fun updateHelperMode(clientId: String, isActive: Boolean)
+
+    @Query("UPDATE user SET rating = :newRating WHERE userId = :clientId")
+    suspend fun updateMyReputation(clientId: String, newRating: Int)
 
     @Query("DELETE FROM user WHERE userId = :userId")
     suspend fun deleteUser(userId: String)
