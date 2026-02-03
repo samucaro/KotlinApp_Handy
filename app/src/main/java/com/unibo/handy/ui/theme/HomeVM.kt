@@ -19,16 +19,33 @@ class HomeVM(private val userRepository: UserRepository) : ViewModel() {
     val userId: StateFlow<String> = _userId.asStateFlow()
 
     init {
-        //loadUser()
+        loadUser()
     }
 
-    /*
+
     private fun loadUser() {
         viewModelScope.launch {
-            val user = userRepository.getOrCreateUser()
-            _userId.value = user.userId
+            userRepository.currentUserFlow.collect { user ->
+                if (user == null) {
+                    // SE IL DB È VUOTO -> SIMULA REGISTRAZIONE (TEST)
+                    _userId.value = "Creazione utente test..."
+                    simulateRegistration()
+                } else {
+                    _userId.value = user.userId
+                }
+            }
         }
-    }*/
+    }
+
+    private suspend fun simulateRegistration() {
+        // Chiamo il repository per salvare su DB e avvisare il server
+        userRepository.updateUserProfile(
+            username = "johnmclean",
+            email = "john.mclean@examplepetstore.com",
+            psw = "test",
+            category = "Test"
+        )
+    }
 
     companion object {
         val Factory: ViewModelProvider.Factory = viewModelFactory {

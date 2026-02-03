@@ -1,4 +1,4 @@
-# Gradle files
+# --- ANDROID & GRADLE ---
 .gradle/
 build/
 
@@ -16,14 +16,14 @@ captures/
 *.apk
 output-metadata.json
 
-# IntelliJ
+# IntelliJ / Android Studio IDE
 *.iml
 .idea/
 misc.xml
 deploymentTargetDropDown.xml
 render.experimental.xml
 
-# Keystore files
+# Keystore files (Chiavi di firma)
 *.jks
 *.keystore
 
@@ -32,3 +32,28 @@ google-services.json
 
 # Android Profiling
 *.hprof
+
+# --- PYTHON SERVER BACKEND ---
+
+# Byte-compiled / Optimized / DLL files
+# Python compila file .pyc per andare più veloce, non servono su git
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual Environments
+# Questa è la cartella più pesante e importante da ignorare.
+# Contiene tutte le librerie scaricate con pip.
+server_backend/venv/
+server_backend/env/
+venv/
+env/
+
+# Environment Variables
+# Se in futuro userai un file .env per le password del server, questo lo protegge
+.env
+.env.local
+
+# IDE specifici per Python (se usi VS Code o PyCharm)
+.vscode/
+.python-version

@@ -1,5 +1,6 @@
 package com.unibo.handy
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -19,6 +20,9 @@ import com.unibo.handy.ui.theme.HandyTheme
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        val intent = Intent(this, NetworkService::class.java)
+        startForegroundService(intent)
         enableEdgeToEdge()
         setContent {
             HandyTheme {

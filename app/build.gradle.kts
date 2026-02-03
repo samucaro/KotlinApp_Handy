@@ -71,7 +71,6 @@ dependencies {
     implementation(libs.maps.compose)
     implementation(libs.kotlinx.coroutines.play.services)
 
-
     // --- BACKGROUND ---
     implementation(libs.androidx.work.runtime.ktx)
 

@@ -45,7 +45,8 @@ class UserRepository(
         // Recuperiamo il nostro ID sessione
         val user = userDao.getUserSnapshot() ?: return
 
-        // Connettiamo il WebSocket
+        Log.d("HandyWS", "Tentativo connessione per ID: ${user.userId}")
+        // Connette il WebSocket
         webSocketManager.connect(user.userId)
 
         // Ascoltiamo i messaggi in arrivo

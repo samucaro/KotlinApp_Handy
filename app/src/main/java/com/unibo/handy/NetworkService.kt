@@ -6,6 +6,7 @@ import android.app.NotificationManager
 import android.app.Service
 import android.content.Intent
 import android.os.IBinder
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.unibo.handy.data.repository.UserRepository
 import kotlinx.coroutines.CoroutineScope
@@ -26,6 +27,8 @@ class NetworkService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        Log.e("HandyDEBUG", "SERVICE AVVIATO: onStartCommand chiamato!")
+
         val notification = createNotification()
         startForeground(1, notification)
 
