@@ -64,6 +64,20 @@ class RegistrationDTO(BaseModel):
     category: str
     isHelper: bool
 
+class HeartBeatModel(BaseModel):
+    clientId: str
+    blurredX: int
+    blurredY: int
+    encryptedBlur: int
+
+class HelpRequestModel(BaseModel):
+    clientId: str
+    category: str
+    blurredX: int
+    blurredY: int
+    encryptedR: int
+    encryptedTol: int
+
 
 # --- API HTTP (REST) ---
 
@@ -88,6 +102,130 @@ async def register_user(data: RegistrationDTO):
 
     return {"status": "registered", "clientId": data.clientId}
 
+@app.post("/heartbeat")
+async def receive_heartbeat(data: HeartBeatModel):
+    """
+    Riceve la posizione offuscata via HTTP e notifica il Service Client via WebSocket.
+    """
+    print(f"💓 HEARTBEAT HTTP RICEVUTO da {data.clientId}")
+    
+    target_uuid = data.clientId
+
+    # 1. Aggiorna registro (se l'utente esiste)
+    if target_uuid in client_registry:
+        client_registry[target_uuid]["last_known_r"] = data.encryptedBlur
+    else:
+        # Se non esiste (magari riavvio server), lo ricrea al volo per evitare crash
+        print(f"WARN: Utente {target_uuid} non trovato, lo registro al volo.")
+        client_registry[target_uuid] = {"category": "Unknown", "isHelper": True, "last_known_r": data.encryptedBlur}
+        storage_map[target_uuid] = target_uuid # Auto-storage per test
+
+    # 2. Gestione Rumore Server
+    if target_uuid not in server_noise_storage:
+        server_noise_storage[target_uuid] = generate_server_noise()
+
+    srv_noise = server_noise_storage[target_uuid]
+
+    # 3. Re-Blurring (Sottrazione)
+    reblurred_x = mod_sub(data.blurredX, srv_noise)
+    reblurred_y = mod_sub(data.blurredY, srv_noise)
+
+    # 4. Invia al Service Client (via WebSocket)
+    service_client_id = storage_map.get(target_uuid)
+
+    if service_client_id:
+        msg = {
+            "type": "STORE_PROFILE",
+            "payload": {
+                "target_uuid": target_uuid,
+                "reblurred_x": reblurred_x,
+                "reblurred_y": reblurred_y,
+                "username": f"User_{target_uuid[:5]}",
+                "category": client_registry[target_uuid].get("category", "Unknown"),
+                "rating": 5
+            }
+        }
+        # Qui usiamo il manager per inviare il messaggio sul WebSocket aperto
+        await manager.send_json(msg, service_client_id)
+        print(f"   -> STORE_PROFILE inviato a {service_client_id}")
+        return {"status": "processed"}
+    else:
+        print("   -> ERRORE: Nessun Service Client assegnato.")
+        return {"status": "no_service_client"}
+    
+@app.post("/help_request")
+async def receive_help_request(data: HelpRequestModel):
+    """
+    Riceve la richiesta (BetaPlus), seleziona i candidati (Service Clients)
+    e invia loro le Tuple per il calcolo della distanza.
+    """
+    print(f"🔎 RICHIESTA HTTP: {data.clientId} cerca {data.category}")
+    
+    requester_id = data.clientId
+    category_needed = data.category
+
+    # 1. Filtra candidati (Chi è della categoria giusta?)
+    candidates = [
+        uid for uid, info in client_registry.items()
+        if info.get("category") == category_needed and uid != requester_id
+    ]
+
+    # TRUCCO PER IL TEST LOCALE:
+    # Se non ci sono altri idraulici connessi, aggiungi te stesso alla lista
+    # così puoi vedere se il matching funziona (ti auto-matchi).
+    if not candidates:
+        print("   -> Nessun candidato trovato. Uso me stesso come target di test.")
+        candidates.append(requester_id)
+
+    # 2. Genera Rumore Server per la Richiesta (Unico per questa transazione)
+    srv_noise_req = generate_server_noise()
+
+    # 3. Costruisci e Invia le Tuple ai Service Clients
+    sent_count = 0
+    for target_id in candidates:
+        # Recupera i dati offuscati del target (salvati durante l'Heartbeat)
+        if target_id not in server_noise_storage:
+            print(f"   -> Skip {target_id}: Nessun dato di posizione (Heartbeat mancante).")
+            continue
+
+        srv_noise_target = server_noise_storage[target_id] # R_srv del target
+        target_enc_r = client_registry[target_id]["last_known_r"] # Enc(R_target)
+
+        # --- CALCOLO TUPLA (Protocollo SMPC) ---
+        # T3 & T4: Aggiungiamo lo stesso rumore richiesta a X e Y
+        t3 = mod_add(data.blurredX, srv_noise_req)
+        t4 = mod_add(data.blurredY, srv_noise_req)
+
+        # T5: Somma dei raggi quadrati (qui semplificata con somma modulare per demo)
+        t5 = mod_add(data.encryptedR, target_enc_r)
+
+        # T6: Somma dei rumori server (R_srv_req + R_srv_target)
+        t6 = mod_add(srv_noise_req, srv_noise_target)
+
+        # Payload da inviare al Service Client
+        tupla_payload = {
+            "t1_requesterId": requester_id,
+            "t2_targetId": target_id,
+            "t3_betaPlusX": t3,
+            "t4_betaPlusY": t4,
+            "t5_sumUserBlur": t5,
+            "t6_sumServerBlur": t6,
+            "t7_tolerance": data.encryptedTol
+        }
+
+        # Trova chi custodisce questo target (nel test locale sei tu)
+        service_client_id = storage_map.get(target_id)
+
+        if service_client_id:
+            msg = {
+                "type": "COMPUTE_MATCH", # Questo attiverà ComputeMatchStrategy su Android
+                "payload": tupla_payload
+            }
+            await manager.send_json(msg, service_client_id)
+            print(f"   -> COMPUTE_MATCH inviato a {service_client_id} (Target: {target_id})")
+            sent_count += 1
+
+    return {"status": "processed", "candidates_contacted": sent_count}
 
 # --- LOGICA DI BUSINESS WEBSOCKET ---
 
@@ -224,6 +362,13 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
             elif "encryptedTol" in data:
                 # È una richiesta di aiuto
                 await handle_help_request(data)
+            elif data.get("type") == "MATCH_FOUND":
+                print(f"✅ MATCH CONFIRMED! Il Client {client_id} ha validato la connessione.")
+                print(f"   - Requester: {data.get('requester_id')}")
+                print(f"   - Target: {data.get('target_id')}")
+                
+                # QUI POTRESTI: Inviare una notifica push al Richiedente ("Trovato!")
+                # Per ora ci basta il log verde.
             else:
                 print(f"WARN: Messaggio WS non riconosciuto da {client_id}")
 

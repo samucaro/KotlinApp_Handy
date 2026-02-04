@@ -14,6 +14,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
+import com.unibo.handy.ui.theme.HandyAppEntry
 import com.unibo.handy.ui.theme.HomeScreen
 import com.unibo.handy.ui.theme.HandyTheme
 
@@ -26,9 +27,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             HandyTheme {
-                Surface(
-                    modifier = Modifier.fillMaxSize()
-                ) { HomeScreen() }
+                HandyAppEntry()
             }
         }
     }

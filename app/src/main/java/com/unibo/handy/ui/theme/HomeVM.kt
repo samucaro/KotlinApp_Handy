@@ -6,43 +6,102 @@ import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.AP
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
-import androidx.sqlite.db.SupportSQLiteOpenHelper
 import com.unibo.handy.HandyApp
 import com.unibo.handy.data.repository.UserRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 class HomeVM(private val userRepository: UserRepository) : ViewModel() {
-    private val _userId = MutableStateFlow<String>("Loading...")
-    val userId: StateFlow<String> = _userId.asStateFlow()
+    private val _uiState = MutableStateFlow(HomeUiState())
+    val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
 
     init {
         loadUser()
+        listenForMatches()
     }
 
     private fun loadUser() {
         viewModelScope.launch {
             userRepository.currentUserFlow.collect { user ->
                 if (user == null) {
-                    // SE IL DB È VUOTO -> SIMULA REGISTRAZIONE (TEST)
-                    _userId.value = "Creazione utente test..."
+                    _uiState.update { it.copy(userId = "Creazione utente test...") }
                     simulateRegistration()
                 } else {
-                    _userId.value = user.userId
+                    _uiState.update {
+                        it.copy(
+                            userId = user.userId,
+                            isHelperMode = user.helpModeActive,
+                            selectedCategory = user.category
+                        )
+                    }
                 }
             }
         }
     }
 
+    fun dismissMatchPopup() {
+        _uiState.update { it.copy(showMatchSuccess = false, statusMessage = "Pronto") }
+    }
+
+    private fun listenForMatches() {
+        viewModelScope.launch {
+            // Ascolta il flusso dal Repository
+            userRepository.matchEvents.collect { matchMessage ->
+                // Appena arriva un evento, aggiorna la UI
+                _uiState.update {
+                    it.copy(
+                        statusMessage = "MATCH TROVATO! $matchMessage",
+                        showMatchSuccess = true // Attiva il popup
+                    )
+                }
+            }
+        }
+    }
+
+    // AZIONE 1: Cambia Modalità (Helper <-> Requester)
+    fun toggleHelperMode(isActive: Boolean) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isHelperMode = isActive) }
+            userRepository.setHelperMode(isActive)
+
+            if(isActive) {
+                userRepository.sendHeartbeat()
+            }
+        }
+    }
+
+    // AZIONE 2: Cambia Parametri Ricerca
+    fun updateSearchParameters(category: String, radius: Float) {
+        _uiState.update { it.copy(selectedCategory = category, toleranceRadius = radius) }
+    }
+
+    // AZIONE 3: Invia Richiesta di Aiuto
+    fun sendHelpRequest() {
+        viewModelScope.launch {
+            val state = _uiState.value
+            _uiState.update { it.copy(statusMessage = "Invio richiesta in corso...") }
+
+            try {
+                userRepository.sendHelpRequest(
+                    category = state.selectedCategory,
+                    tolerance = state.toleranceRadius.toDouble()
+                )
+                _uiState.update { it.copy(statusMessage = "Richiesta inviata! In attesa di match...") }
+            } catch (e: Exception) {
+                _uiState.update { it.copy(statusMessage = "Errore invio: ${e.message}") }
+            }
+        }
+    }
+
     private suspend fun simulateRegistration() {
-        // Chiamo il repository per salvare su DB e avvisare il server
         userRepository.updateUserProfile(
-            username = "johnmclean",
-            email = "john.mclean@examplepetstore.com",
-            psw = "test",
-            category = "Test"
+            username = "NewUser",
+            email = "test@handy.com",
+            psw = "1234",
+            category = "Generico"
         )
     }
 

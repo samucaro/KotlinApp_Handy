@@ -18,6 +18,8 @@ import com.unibo.handy.domain.MatchingService
 import com.unibo.handy.domain.PrivacyEngine
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.withContext
 
 class UserRepository(
@@ -33,12 +35,17 @@ class UserRepository(
     private val matchingService: MatchingService
 ) {
     val currentUserFlow: Flow<UserEntity?> = userDao.getUserFlow()
+    private val _matchEvents = MutableSharedFlow<String>()
+    val matchEvents = _matchEvents.asSharedFlow()
     private val gson = Gson()
     private val strategies: Map<String, MessageStrategy> = mapOf(
         "STORE_PROFILE" to StoreProfileStrategy(storedClientDao),
         "UPDATE_PROFILE" to StoreProfileStrategy(storedClientDao),
         "UPDATE_RATINGDATA" to StoreProfileStrategy(storedClientDao),
-        "COMPUTE_MATCH" to ComputeMatchStrategy(matchingService, webSocketManager, gson)
+        "COMPUTE_MATCH" to ComputeMatchStrategy(matchingService, webSocketManager, gson) { matchInfo ->
+            Log.d("UserRepository", "Callback Match attivata! Notifico la UI.")
+            _matchEvents.tryEmit(matchInfo)
+        }
     )
 
     // Metodo di semplice registrazione/aggiornamento nel sistema (profile_update_request)
@@ -107,25 +114,32 @@ class UserRepository(
 
     // Metodo di invio del Heartbeat al server valido solo per le coordinate GPS
     suspend fun sendHeartbeat() = withContext(Dispatchers.IO) {
+        Log.e("HandyDEBUG", "--- INIZIO HEARTBEAT ---")
         // 1. CONTROLLO DI SICUREZZA
         val user = userDao.getUserSnapshot()
+
         if (user == null || !user.helpModeActive) {
+            Log.e("HandyDEBUG", "STOP: Utente null nel DB")
             Log.d("UserRepository", "Hertbeat not sent. User not in helper mode.")
             return@withContext
         }
+        Log.e("HandyDEBUG", "Utente OK. Richiedo posizione GPS...")
 
         // 2. RECUPERO GPS
         val location = locationClient.getCurrentLocation()
         if (location == null) {
+            Log.e("HandyDEBUG", "STOP: LocationClient ha restituito NULL! (Controlla permessi o Emulatore)")
             Log.w("UserRepository", "Impossible to get GPS position.")
             return@withContext
         }
+        Log.e("HandyDEBUG", "Posizione trovata: ${location.latitude}, ${location.longitude}")
 
         // 3. MATEMATICA (Blurring)
         val blurredData = PrivacyEngine.createEncryptedData(
             lat = location.latitude,
             lon = location.longitude
         )
+        Log.e("HandyDEBUG", "Blurring completato. Invio al server...")
 
         // 4. INVIO AL SERVER
         // Rispetto al paper vengono inviati solo gli aggiornamenti periodici della posizione
@@ -139,7 +153,10 @@ class UserRepository(
 
             val response = apiService.sendHeartbeat(dto)
             if (response.isSuccessful) {
+                Log.e("HandyDEBUG", "SUCCESS: Heartbeat inviato e ricevuto dal server (200 OK)!")
                 Log.d("UserRepository", "Heartbeat sent! Position updated.")
+            } else {
+                Log.e("HandyDEBUG", "ERRORE SERVER: Codice ${response.code()} - ${response.errorBody()?.string()}")
             }
         } catch (e: Exception) {
             Log.e("UserRepository", "Heartbeat sent failed", e)

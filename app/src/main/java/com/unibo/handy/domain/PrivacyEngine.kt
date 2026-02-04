@@ -121,7 +121,7 @@ object PrivacyEngine {
         cleanDeltaX = modSub(cleanDeltaX, t6)
 
         // 3. Gestione distanza minima sull'anello (Wrapping)
-        //val metricX = minMetricDistance(cleanDeltaX)
+        val metricX = minMetricDistance(cleanDeltaX)
 
 
         // --- CALCOLO ASSE Y ---
@@ -131,7 +131,7 @@ object PrivacyEngine {
         var cleanDeltaY = modSub(rawDiffY, t5)
         cleanDeltaY = modSub(cleanDeltaY, t6)
 
-        //val metricY = minMetricDistance(cleanDeltaY)
+        val metricY = minMetricDistance(cleanDeltaY)
 
 
         // --- CALCOLO DISTANZA EUCLIDEA ---
