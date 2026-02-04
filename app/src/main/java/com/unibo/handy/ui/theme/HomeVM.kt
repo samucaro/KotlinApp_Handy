@@ -22,7 +22,6 @@ class HomeVM(private val userRepository: UserRepository) : ViewModel() {
         loadUser()
     }
 
-
     private fun loadUser() {
         viewModelScope.launch {
             userRepository.currentUserFlow.collect { user ->

@@ -16,7 +16,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 
 class NetworkService : Service() {
-    private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    private val coroutineScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private lateinit var repository: UserRepository
 
     override fun onCreate() {
@@ -32,7 +32,7 @@ class NetworkService : Service() {
         val notification = createNotification()
         startForeground(1, notification)
 
-        serviceScope.launch {
+        coroutineScope.launch {
             repository.startListeningForJobs()
         }
 
@@ -41,7 +41,7 @@ class NetworkService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
-        serviceScope.cancel()
+        coroutineScope.cancel()
     }
 
     override fun onBind(intent: Intent?): IBinder? = null

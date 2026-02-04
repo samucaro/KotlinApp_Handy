@@ -60,7 +60,8 @@ dependencies {
     implementation(libs.retrofit2.converter.gson)
 
     // --- OKHTTP (WebSocket) ---
-    implementation(libs.com.squareup.okhttp3)
+    implementation(libs.okhttp3)
+    implementation(libs.okhttp3.logging.interceptor)
 
     // --- NAVIGATION COMPOSE ---
     implementation(libs.androidx.navigation.compose)

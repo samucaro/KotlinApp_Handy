@@ -17,5 +17,4 @@ interface ServiceAPI {
 
     @POST("/help_request")
     suspend fun sendHelpRequest(@Body payload: HelpRequestDTO): Response<Unit>
-
 }

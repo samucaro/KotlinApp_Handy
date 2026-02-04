@@ -41,20 +41,6 @@ class UserRepository(
         "COMPUTE_MATCH" to ComputeMatchStrategy(matchingService, webSocketManager, gson)
     )
 
-    suspend fun startListeningForJobs() {
-        // Recuperiamo il nostro ID sessione
-        val user = userDao.getUserSnapshot() ?: return
-
-        Log.d("HandyWS", "Tentativo connessione per ID: ${user.userId}")
-        // Connette il WebSocket
-        webSocketManager.connect(user.userId)
-
-        // Ascoltiamo i messaggi in arrivo
-        webSocketManager.incomingMessages.collect { jsonString ->
-            handleServerMessage(jsonString)
-        }
-    }
-
     // Metodo di semplice registrazione/aggiornamento nel sistema (profile_update_request)
     suspend fun updateUserProfile(username: String, email: String, psw: String, category: String) {
         // Verifica esistenza utente nel DB locale
@@ -88,6 +74,7 @@ class UserRepository(
                 isHelper = isHelper
             )
 
+            // Utilizzando Retrofit qui c'è il cambio di thread da Dispatchers.IO
             val response = apiService.registerProfile(dto)
             if (response.isSuccessful) {
                 Log.d("UserRepository", "Registration successful")
@@ -103,6 +90,21 @@ class UserRepository(
       *(Fase 2: Profile-Update-Request Fig. 4b paper)
       *Solo per Helper client
      **/
+    // Attiva la connessione stateful con il server tramite WebSocket
+    suspend fun startListeningForJobs() {
+        // Recuperiamo il nostro ID sessione
+        val user = userDao.getUserSnapshot() ?: return
+
+        Log.d("HandyWS", "Tentativo connessione per ID: ${user.userId}")
+        // Connette il WebSocket
+        webSocketManager.connect(user.userId)
+
+        // Ascoltiamo i messaggi in arrivo
+        webSocketManager.incomingMessages.collect { jsonString ->
+            handleServerMessage(jsonString)
+        }
+    }
+
     // Metodo di invio del Heartbeat al server valido solo per le coordinate GPS
     suspend fun sendHeartbeat() = withContext(Dispatchers.IO) {
         // 1. CONTROLLO DI SICUREZZA
