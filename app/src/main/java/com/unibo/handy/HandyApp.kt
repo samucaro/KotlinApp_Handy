@@ -3,6 +3,7 @@ package com.unibo.handy
 import android.app.Application
 import com.unibo.handy.data.db.HandyDB
 import com.unibo.handy.data.repository.UserRepository
+import com.unibo.handy.data.repository.ChatRepository
 import com.unibo.handy.data.LocationClientSensor
 import com.unibo.handy.data.network.RetrofitClient
 import com.unibo.handy.data.network.WebSocketManager
@@ -20,12 +21,20 @@ class HandyApp : Application() {
     private val matchingService by lazy {
         MatchingService(db.storedClientDao())
     }
+
+    val chatRepository by lazy {
+        ChatRepository(
+            chatDao = db.chatDao(),
+            userDao = db.userDao(),
+            webSocketManager = webSocketManager
+        )
+    }
     val userRepository by lazy {
         UserRepository(
+            chatRepository = chatRepository,
             userDao = db.userDao(),
             storedClientDao = db.storedClientDao(),
             matchDao = db.matchDao(),
-            chatDao = db.chatDao(),
             webSocketManager = webSocketManager,
             // API Service (Retrofit client)
             apiService = RetrofitClient.retrofitService,

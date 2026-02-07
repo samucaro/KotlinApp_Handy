@@ -8,6 +8,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.unibo.handy.HandyApp
+import com.unibo.handy.data.repository.ChatRepository
 import com.unibo.handy.data.repository.UserRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -19,7 +20,10 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
-class HomeVM(private val userRepository: UserRepository) : ViewModel() {
+class HomeVM(
+    private val userRepository: UserRepository,
+    private val chatRepository: ChatRepository
+) : ViewModel() {
     private val _uiState = MutableStateFlow(HomeUiState()) // privata (visibile solo dal VM)
     // uiState è lo specchio di _uiState quindi chiunque cambia compose percepisce la modifica
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow() // pubblica (visibile alla UI Compose)
@@ -165,22 +169,23 @@ class HomeVM(private val userRepository: UserRepository) : ViewModel() {
         }
     }
 
-    /*
-    private suspend fun simulateRegistration() {
-        userRepository.updateUserProfile(
-            username = "NewUser",
-            email = "test@handy.com",
-            psw = "1234",
-            category = "Generico"
-        )
+    fun getChatMessages(chatId: String) = chatRepository.getMessagesFlow(chatId)
+
+    fun sendMessage(recipientId: String, text: String) {
+        viewModelScope.launch {
+            chatRepository.sendMessage(recipientId, text)
+        }
     }
-     */
 
     companion object {
         val Factory: ViewModelProvider.Factory = viewModelFactory {
             initializer {
                 val application = (this[APPLICATION_KEY] as HandyApp)
-                HomeVM(application.userRepository)
+                HomeVM(
+                    userRepository = application.userRepository,
+                    chatRepository = application.chatRepository
+                )
+
             }
         }
     }

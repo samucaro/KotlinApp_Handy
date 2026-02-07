@@ -47,11 +47,16 @@ import java.util.Locale
 import com.unibo.handy.data.db.entity.MatchEntity
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 
 // Indirizzi schermate per Jetpack Navigation
 sealed class Screen(val route: String) {
     object SignUp : Screen("signup_screen")
     object Home : Screen("home_screen")
+    object ChatDetail : Screen("chat_detail/{matchId}") {
+        fun createRoute(matchId: String) = "chat_detail/$matchId"
+    }
 }
 
 // --- ENTRY POINT ---
@@ -96,7 +101,23 @@ fun HandyAppEntry() {
         }
         // ROTTA 2: Schermata Main
         composable(Screen.Home.route) {
-            MainScreen(viewModel)
+            MainScreen(
+                viewModel = viewModel,
+                onOpenChat = { matchId ->
+                    // Quando clicco su una chat, navigo al dettaglio
+                    navController.navigate(Screen.ChatDetail.createRoute(matchId))
+                }
+            )
+        }
+        composable(Screen.ChatDetail.route) { backStackEntry ->
+            val matchId = backStackEntry.arguments?.getString("matchId") ?: return@composable
+
+            // Questa è la schermata della chat vera e propria (che aggiungeremo in fondo)
+            SingleChatScreen(
+                viewModel = viewModel,
+                matchId = matchId,
+                onBack = { navController.popBackStack() }
+            )
         }
     }
 
@@ -219,7 +240,10 @@ fun SignUpContent(
 // ------------------------------------------ MAIN SCREEN ------------------------------------------
 @RequiresApi(Build.VERSION_CODES.TIRAMISU)
 @Composable
-fun MainScreen(viewModel: HomeVM) {
+fun MainScreen(
+    viewModel: HomeVM,
+    onOpenChat: (String) -> Unit
+) {
     var selectedTab by remember() { mutableIntStateOf(0) }
 
     val locationPermissionLauncher = rememberLauncherForActivityResult(
@@ -263,7 +287,10 @@ fun MainScreen(viewModel: HomeVM) {
                         Log.d("HandyUI", "Apro chat con: $matchId")
                     }
                 )
-                2 -> PlaceholderScreen("Chat Private", Icons.Default.Email)
+                2 -> ChatScreen(
+                    viewModel = viewModel,
+                    onChatClick = onOpenChat
+                )
                 3 -> ProfileScreen(viewModel)
             }
         }
@@ -447,7 +474,6 @@ fun ActivityScreen(viewModel: HomeVM, onChatClick: (String) -> Unit) {
         onChatClick = onChatClick
     )
 }
-
 // 2. Content Stateless (Disegna la UI)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -482,6 +508,211 @@ fun ActivityContent(
                 items(matchesList) { match ->
                     ActivityMatchItem(match, onChatClick)
                 }
+            }
+        }
+    }
+}
+
+// ---------------------------------------- ACTIVITY SCREEN ----------------------------------------
+// 1. Wrapper Stateful (Collega i dati)
+@Composable
+fun ChatScreen(
+    viewModel: HomeVM,
+    onChatClick: (String) -> Unit
+) {
+    val state by viewModel.uiState.collectAsState()
+    ChatContent(matchesList = state.matchesList, onChatClick = onChatClick)
+}
+// 2. Content Stateless (Disegna la UI)
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ChatContent(matchesList: List<MatchEntity>, onChatClick: (String) -> Unit) {
+    Column(modifier = Modifier.fillMaxSize()) {
+        TopAppBar(
+            title = { Text("Messaggi", fontWeight = FontWeight.Bold) },
+            colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
+        )
+
+        if (matchesList.isEmpty()) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text("Nessuna conversazione attiva", color = Color.Gray)
+            }
+        } else {
+            LazyColumn(
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(matchesList) { match ->
+                    ChatItem(match, onChatClick)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun ChatItem(match: MatchEntity, onClick: (String) -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick(match.requesterId) } // Apre la chat singola
+            .padding(vertical = 12.dp, horizontal = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // Avatar Rotondo
+        Surface(
+            shape = CircleShape,
+            color = Color(0xFF006C75), // HandyPrimary
+            modifier = Modifier.size(56.dp)
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Text(
+                    text = match.username.take(1).uppercase(),
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 24.sp
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.width(16.dp))
+
+        // Nome e Ultimo Messaggio (Simulato per ora)
+        Column(modifier = Modifier.weight(1f)) {
+            Text(match.username, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Text(
+                text = "Tocca per chattare...", // Qui in futuro metteremo l'ultimo messaggio vero
+                style = MaterialTheme.typography.bodyMedium,
+                color = Color.Gray,
+                maxLines = 1
+            )
+        }
+
+        // Orario (Simulato dalla data del match)
+        Text(
+            text = SimpleDateFormat("HH:mm", Locale.getDefault()).format(match.timestamp),
+            style = MaterialTheme.typography.bodySmall,
+            color = Color.Gray
+        )
+    }
+    Divider(color = Color.LightGray.copy(alpha = 0.3f), thickness = 1.dp)
+}
+
+// ---------------------------------------- SINGLE CHAT SCREEN ----------------------------------------
+// Questa è la schermata che si apre quando clicchi su un elemento della lista sopra
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SingleChatScreen(
+    viewModel: HomeVM,
+    matchId: String,
+    onBack: () -> Unit
+) {
+    // Recupera i messaggi specifici per questo matchId
+    val messages by viewModel.getChatMessages(matchId).collectAsState(initial = emptyList())
+    var inputText by remember { mutableStateOf("") }
+    val listState = androidx.compose.foundation.lazy.rememberLazyListState()
+
+    // Scroll automatico in basso quando arriva un messaggio
+    LaunchedEffect(messages.size) {
+        if (messages.isNotEmpty()) listState.animateScrollToItem(messages.size - 1)
+    }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = {
+                    Column {
+                        Text("Chat", fontWeight = FontWeight.Bold)
+                        // Mostriamo l'ID o il Nome (in futuro passeremo il nome completo)
+                        Text("Utente ${matchId.take(4)}...", style = MaterialTheme.typography.bodySmall)
+                    }
+                },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Indietro")
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
+            )
+        },
+        bottomBar = {
+            // Barra di Input (In basso)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(8.dp)
+                    .background(Color.White, CircleShape)
+                    .border(1.dp, Color.LightGray, CircleShape)
+                    .padding(horizontal = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                TextField(
+                    value = inputText,
+                    onValueChange = { inputText = it },
+                    placeholder = { Text("Scrivi un messaggio...") },
+                    modifier = Modifier.weight(1f),
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = Color.Transparent,
+                        unfocusedContainerColor = Color.Transparent,
+                        focusedIndicatorColor = Color.Transparent,
+                        unfocusedIndicatorColor = Color.Transparent
+                    ),
+                    maxLines = 3
+                )
+                IconButton(onClick = {
+                    if (inputText.isNotBlank()) {
+                        viewModel.sendMessage(matchId, inputText)
+                        inputText = ""
+                    }
+                }) {
+                    Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Invia", tint = Color(0xFF006C75))
+                }
+            }
+        }
+    ) { padding ->
+        // Area Messaggi
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .background(Color(0xFFECE5DD)) // Sfondo beige stile WhatsApp
+        ) {
+            LazyColumn(
+                state = listState,
+                modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
+                contentPadding = PaddingValues(vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(messages) { msg ->
+                    val isMe = msg.senderId != matchId
+                    MessageBubble(msg, isMe)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun MessageBubble(msg: com.unibo.handy.data.db.entity.ChatMessagesEntity, isMe: Boolean) {
+    val bubbleColor = if (isMe) Color(0xFFDCF8C6) else Color.White // Verde per me, Bianco per l'altro
+    val alignment = if (isMe) Alignment.End else Alignment.Start
+
+    Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = alignment) {
+        Surface(
+            color = bubbleColor,
+            shape = RoundedCornerShape(8.dp),
+            shadowElevation = 1.dp,
+            modifier = Modifier.widthIn(max = 280.dp)
+        ) {
+            Column(modifier = Modifier.padding(8.dp)) {
+                Text(msg.message, fontSize = 16.sp)
+                Text(
+                    text = SimpleDateFormat("HH:mm", Locale.getDefault()).format(msg.timestamp),
+                    fontSize = 10.sp,
+                    color = Color.Gray,
+                    modifier = Modifier.align(Alignment.End)
+                )
             }
         }
     }

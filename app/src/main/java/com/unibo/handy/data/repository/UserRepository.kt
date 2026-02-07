@@ -32,11 +32,11 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 class UserRepository(
+    private val chatRepository: ChatRepository,
     // Dati DB
     private val userDao: UserDAO,
     storedClientDao: StoredClientDAO,
     private val matchDao: MatchDAO,
-    private val chatDao: ChatDAO,
     // Dati di rete
     private val webSocketManager: WebSocketManager,
     private val apiService: ServiceAPI,
@@ -66,6 +66,14 @@ class UserRepository(
             Log.i("HandyFlow", "MATCH CALCOLATO POSITIVO! Info: $matchInfo")
             saveMatchToDb(matchInfo)
             //_matchEvents.tryEmit(matchInfo)
+        },
+        "CHAT_MESSAGE" to object : MessageStrategy {
+            override suspend fun handle(fullMessage: Map<*, *>) {
+                val payload = fullMessage["payload"] as? Map<*, *> ?: return
+                val senderId = payload["from"] as? String ?: return
+                val content = payload["message"] as? String ?: ""
+                chatRepository.saveIncomingMessage(senderId, content)
+            }
         }
     )
 
