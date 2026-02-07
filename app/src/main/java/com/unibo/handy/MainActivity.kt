@@ -1,50 +1,36 @@
 package com.unibo.handy
 
 import android.content.Intent
+import android.os.Build
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
+import androidx.annotation.RequiresApi
 import com.unibo.handy.ui.theme.HandyAppEntry
-import com.unibo.handy.ui.theme.HomeScreen
 import com.unibo.handy.ui.theme.HandyTheme
 
 class MainActivity : ComponentActivity() {
+    @RequiresApi(Build.VERSION_CODES.TIRAMISU)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        val intent = Intent(this, NetworkService::class.java)
-        startForegroundService(intent)
+        requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 101)
+
+        try {
+            // Attiva subito il servizio in foreground (mostra notifica) che sarà sempre attivo
+            val intent = Intent(this, NetworkService::class.java)
+            startForegroundService(intent)
+        } catch(e: Exception) {
+            Log.e("Handy", "Errore startService: ${e.message}")
+        }
+
         enableEdgeToEdge()
         setContent {
             HandyTheme {
                 HandyAppEntry()
             }
         }
-    }
-}
-
-@Composable
-fun Greeting(name: String, modifier: Modifier = Modifier) {
-    Text(
-        text = "Hello $name!",
-        modifier = modifier
-    )
-}
-
-@Preview(showBackground = true)
-@Composable
-fun GreetingPreview() {
-    HandyTheme {
-        Greeting("Android")
     }
 }

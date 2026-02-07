@@ -137,7 +137,7 @@ async def receive_heartbeat(data: HeartBeatModel):
         msg = {
             "type": "STORE_PROFILE",
             "payload": {
-                "target_uuid": target_uuid,
+                "target_id": target_uuid,
                 "reblurred_x": reblurred_x,
                 "reblurred_y": reblurred_y,
                 "username": f"User_{target_uuid[:5]}",
@@ -262,7 +262,7 @@ async def handle_heartbeat(data: dict):
         msg = {
             "type": "STORE_PROFILE",
             "payload": {
-                "target_uuid": target_uuid,
+                "target_id": target_uuid,
                 "reblurred_x": reblurred_x,
                 "reblurred_y": reblurred_y,
                 "username": f"User_{target_uuid[:5]}",

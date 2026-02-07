@@ -1,5 +1,6 @@
 package com.unibo.handy.domain
 
+import android.util.Log
 import java.security.SecureRandom
 import kotlin.math.abs
 import kotlin.math.sqrt
@@ -65,6 +66,14 @@ object PrivacyEngine {
         // Formula: β- = (p - r) mod P
         val blurredX = modSub(pX, personalizedBlur)
         val blurredY = modSub(pY, personalizedBlur)
+
+        // LOG DI VERIFICA MATEMATICA
+        Log.v("HandyCrypto", """
+        BLURRING UPDATE:
+        Lat Reale: $lat -> Fixed: $pX
+        Rumore (r): $personalizedBlur
+        Beta- (Inviato): $blurredX
+        """.trimIndent())
 
         return UpdateProfileData(blurredX, blurredY, personalizedBlur)
     }
@@ -136,8 +145,10 @@ object PrivacyEngine {
 
         // --- CALCOLO DISTANZA EUCLIDEA ---
         // Sqrt( x^2 + y^2 )
-        val distSquared = (cleanDeltaX * cleanDeltaX) + (cleanDeltaY * cleanDeltaY)
+        val distSquared = (metricX * metricX) + (metricY * metricY)
         val distance = sqrt(distSquared.toDouble())
+
+        Log.d("HandyCrypto", "Distanza Calcolata: $distance | Soglia (T7): $t7")
 
         // --- VERIFICA SOGLIA ---
         // Distanza <= T7

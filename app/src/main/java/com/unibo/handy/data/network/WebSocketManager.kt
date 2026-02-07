@@ -96,4 +96,8 @@ class WebSocketManager(private val client: OkHttpClient) {
         webSocket?.close(1000, "App closing")
         webSocket = null
     }
+
+    fun isConnected(): Boolean {
+        return webSocket != null
+    }
 }

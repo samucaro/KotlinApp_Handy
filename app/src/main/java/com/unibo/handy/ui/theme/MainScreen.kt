@@ -1,13 +1,14 @@
 package com.unibo.handy.ui.theme
 
+import android.Manifest
+import com.unibo.handy.R
 import android.os.Build
+import android.util.Log
 import androidx.compose.animation.core.*
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -25,35 +26,218 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.RequiresApi
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.runtime.LaunchedEffect
-import com.unibo.handy.ui.theme.HandyPrimary
-import com.unibo.handy.ui.theme.HandySecondary
-import com.unibo.handy.ui.theme.HomeVM
-import com.unibo.handy.ui.theme.HomeUiState
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
+import java.text.SimpleDateFormat
+import java.util.Locale
+import com.unibo.handy.data.db.entity.MatchEntity
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 
-// --- 1. STRUTTURA PRINCIPALE (SCAFFOLD) ---
+// Indirizzi schermate per Jetpack Navigation
+sealed class Screen(val route: String) {
+    object SignUp : Screen("signup_screen")
+    object Home : Screen("home_screen")
+}
+
+// --- ENTRY POINT ---
 @RequiresApi(Build.VERSION_CODES.TIRAMISU)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HandyAppEntry() {
     val viewModel: HomeVM = viewModel(factory = HomeVM.Factory)
-    var selectedTab by remember { mutableIntStateOf(0) }
+
+    val state by viewModel.uiState.collectAsState()
+
+    //var isRegistered by rememberSaveable { mutableStateOf(false) }
+    val navController = rememberNavController()
+
+    LaunchedEffect(state.userId) {
+        // Se l'ID non è vuoto (quindi loadUser ha trovato qualcuno nel DB)
+        if (state.userId.isNotBlank()) {
+            //isRegistered = true
+            navController.navigate(Screen.Home.route) {
+                // "popUpTo" serve a cancellare la cronologia dato che deve tornare al Signup
+                popUpTo(Screen.SignUp.route) { inclusive = true }
+            }
+        }
+    }
+
+    // Contenitore che cambia schermata
+    NavHost(
+        navController = navController,
+        startDestination = Screen.SignUp.route
+    ) {
+        // ROTTA 1: Schermata di Signup
+        composable(Screen.SignUp.route) {
+            SignUpScreen(
+                viewModel = viewModel,
+                // Quando la registrazione manuale finisce (click bottone), passa a Home
+                onSignUpSuccess = {
+                    navController.navigate(Screen.Home.route) {
+                        popUpTo(Screen.SignUp.route) { inclusive = true }
+                    }
+                }
+            )
+        }
+        // ROTTA 2: Schermata Main
+        composable(Screen.Home.route) {
+            MainScreen(viewModel)
+        }
+    }
+
+    /*if (isRegistered) {
+        MainScreen(viewModel)
+    } else {
+        SignUpScreen(viewModel = viewModel)
+    }*/
+}
+
+// ---------------------------------- SIGNUP SCREEN (LOGICA + UI) ----------------------------------
+
+// 1. Wrapper Stateful (Gestisce il ViewModel)
+@Composable
+fun SignUpScreen(viewModel: HomeVM, onSignUpSuccess: () -> Unit) {
+    SignUpContent(
+        onSignUpClick = { username, email, password ->
+            viewModel.updateUserProfile(username, email, password, "Generico")
+            onSignUpSuccess()
+        }
+    )
+}
+// 2. Content Stateless (Solo UI)
+@Composable
+fun SignUpContent(
+    onSignUpClick: (String, String, String) -> Unit
+) {
+    // Stati per i campi di testo (gestiti localmente nella UI)
+    var username by remember { mutableStateOf("") }
+    var email by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xFF006C75))
+    ) {
+        // Parte superiore: Logo e Immagine (30% dello schermo)
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(0.3f),
+            contentAlignment = Alignment.Center
+        ) {
+            Image(
+                painter = painterResource(id = R.drawable.handy_icon),
+                contentDescription = "Logo Handy App",
+                modifier = Modifier
+                    .size(180.dp)
+                    .padding(top = 16.dp)
+                    .clip(CircleShape),
+                contentScale = ContentScale.Crop
+            )
+        }
+
+        // Parte inferiore: Card bianca con i campi (70% dello schermo)
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(0.7f),
+            shape = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp),
+            color = Color.White
+        ) {
+            Column(
+                modifier = Modifier
+                    .padding(24.dp)
+                    .verticalScroll(rememberScrollState()),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text("Ti diamo il benvenuto", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                Text("Inizia con il  tuo account", color = Color.Gray)
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                // CAMPI DI INPUT
+                OutlinedTextField(
+                    value = username,
+                    onValueChange = { username = it },
+                    label = { Text("Username") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                OutlinedTextField(
+                    value = email,
+                    onValueChange = { email = it },
+                    label = { Text("Email") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = { password = it },
+                    label = { Text("Password") },
+                    visualTransformation = PasswordVisualTransformation(),
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(modifier = Modifier.height(32.dp))
+
+                // BOTTONE DI REGISTRAZIONE
+                Button(
+                    onClick = {
+                        onSignUpClick(username, email, password)
+                    },
+                    modifier = Modifier.fillMaxWidth().height(56.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6F00)),
+                    shape = RoundedCornerShape(28.dp)
+                ) {
+                    Text("Registrati", fontSize = 18.sp)
+                }
+            }
+        }
+    }
+}
+
+// ------------------------------------------ MAIN SCREEN ------------------------------------------
+@RequiresApi(Build.VERSION_CODES.TIRAMISU)
+@Composable
+fun MainScreen(viewModel: HomeVM) {
+    var selectedTab by remember() { mutableIntStateOf(0) }
 
     val locationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
-        val granted = permissions.getOrDefault(android.Manifest.permission.ACCESS_FINE_LOCATION, false)
+        val granted = permissions.getOrDefault(Manifest.permission.ACCESS_FINE_LOCATION, false)
         if (granted) {
             // Permesso concesso!
         }
     }
 
+    // Chiede i permessi alla prima apertura dell'app
     LaunchedEffect(Unit) {
         locationPermissionLauncher.launch(
             arrayOf(
-                android.Manifest.permission.ACCESS_FINE_LOCATION,
-                android.Manifest.permission.ACCESS_COARSE_LOCATION,
-                android.Manifest.permission.POST_NOTIFICATIONS
+                Manifest.permission.ACCESS_FINE_LOCATION,
+                Manifest.permission.ACCESS_COARSE_LOCATION,
+                Manifest.permission.POST_NOTIFICATIONS
             )
         )
     }
@@ -62,8 +246,8 @@ fun HandyAppEntry() {
         bottomBar = {
             NavigationBar(containerColor = Color.White) {
                 NavBarItem(0, "Home", Icons.Default.Home, selectedTab) { selectedTab = 0 }
-                NavBarItem(1, "Attività", Icons.Default.List, selectedTab) { selectedTab = 1 }
-                NavBarItem(2, "Chat", Icons.Default.Email, selectedTab) { selectedTab = 2 }
+                NavBarItem(1, "Attività", Icons.AutoMirrored.Filled.List, selectedTab) { selectedTab = 1 }
+                NavBarItem(2, "Chat", Icons.Default.Sms, selectedTab) { selectedTab = 2 }
                 NavBarItem(3, "Profilo", Icons.Default.Person, selectedTab) { selectedTab = 3 }
             }
         }
@@ -72,7 +256,13 @@ fun HandyAppEntry() {
         Box(modifier = Modifier.padding(innerPadding).fillMaxSize().background(Color(0xFFF5F7F8))) {
             when (selectedTab) {
                 0 -> HomeScreen(viewModel)
-                1 -> PlaceholderScreen("Le tue Attività", Icons.Default.List)
+                1 -> ActivityScreen(
+                    viewModel = viewModel,
+                    onChatClick = { matchId ->
+                        // Aggiornare poi navController.navigate("chat/$matchId")
+                        Log.d("HandyUI", "Apro chat con: $matchId")
+                    }
+                )
                 2 -> PlaceholderScreen("Chat Private", Icons.Default.Email)
                 3 -> ProfileScreen(viewModel)
             }
@@ -80,11 +270,31 @@ fun HandyAppEntry() {
     }
 }
 
-// --- 2. HOME SCREEN (IL CUORE) ---
+
+// ---------------------------------------- HOME SCREEN TAB ----------------------------------------
+
+// 1. Wrapper Stateful
 @Composable
 fun HomeScreen(viewModel: HomeVM) {
     val state by viewModel.uiState.collectAsState()
 
+    HomeContent(
+        state = state,
+        onToggleHelperMode = { viewModel.toggleHelperMode(it) },
+        onDismissMatchPopup = { viewModel.dismissMatchPopup() },
+        onSearchParamUpdate = { cat, radius -> viewModel.updateSearchParameters(cat, radius) },
+        onSendHelpRequest = { viewModel.sendHelpRequest() }
+    )
+}
+// 2. Content Stateless (Solo UI)
+@Composable
+fun HomeContent(
+    state: HomeUiState,
+    onToggleHelperMode: (Boolean) -> Unit,
+    onDismissMatchPopup: () -> Unit,
+    onSearchParamUpdate: (String, Float) -> Unit,
+    onSendHelpRequest: () -> Unit
+) {
     Column(
         modifier = Modifier.fillMaxSize().padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
@@ -113,15 +323,20 @@ fun HomeScreen(viewModel: HomeVM) {
         }
 
         // Switch Principale (Modalità)
-        ModeSwitchCard(state.isHelperMode) { viewModel.toggleHelperMode(it) }
+        ModeSwitchCard(state.isHelperMode, onToggleHelperMode)
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // Contenuto Dinamico
+
         if (state.isHelperMode) {
             HelperView()
         } else {
-            RequesterView(state, viewModel)
+            RequesterView(
+                state = state,
+                onCategorySelect = { cat -> onSearchParamUpdate(cat, state.toleranceRadius) },
+                onRadiusChange = { rad -> onSearchParamUpdate(state.selectedCategory, rad) },
+                onSearchClick = onSendHelpRequest
+            )
         }
 
         Spacer(modifier = Modifier.weight(1f))
@@ -130,12 +345,20 @@ fun HomeScreen(viewModel: HomeVM) {
         // POPUP MATCH TROVATO
         if (state.showMatchSuccess) {
             AlertDialog(
-                onDismissRequest = { viewModel.dismissMatchPopup() },
-                title = { Text(text = "🎉 Match Trovato!") },
-                text = { Text("Abbiamo trovato un Helper compatibile nelle vicinanze proteggendo la tua privacy.") },
+                onDismissRequest = onDismissMatchPopup,
+                title = {
+                    Text(text = "MATCH TROVATO! 🎉", color = Color(0xFF2E7D32), fontWeight = FontWeight.Bold)
+                },
+                text = {
+                    Column {
+                        Text("Un Helper è disponibile vicino a te!")
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(text = state.statusMessage)
+                    }
+                },
                 confirmButton = {
                     Button(
-                        onClick = { viewModel.dismissMatchPopup() },
+                        onClick = onDismissMatchPopup,
                         colors = ButtonDefaults.buttonColors(containerColor = HandySecondary)
                     ) {
                         Text("Contatta Ora")
@@ -147,8 +370,218 @@ fun HomeScreen(viewModel: HomeVM) {
     }
 }
 
-// --- 3. COMPONENTI UI SPECIFICI ---
+// ---------------------------------------- PROFILE SCREEN ----------------------.------------------
 
+// 1. Wrapper Stateful
+@Composable
+fun ProfileScreen(viewModel: HomeVM) {
+    val state by viewModel.uiState.collectAsState()
+    ProfileContent(username = state.username)
+}
+// 2. Content Stateless
+@Composable
+fun ProfileContent(username: String) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(HandyPrimary)
+    ) {
+        // Parte superiore: Immagine e Nome
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(0.3f),
+            contentAlignment = Alignment.Center
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(24.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                LetterAvatar(username)
+                Spacer(modifier = Modifier.width(16.dp))
+
+                Text(
+                    username,
+                    style = MaterialTheme.typography.displaySmall,
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center
+                )
+            }
+        }
+
+        // Parte inferiore: Card bianca con i campi
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(0.7f),
+            shape = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp),
+            color = Color.White
+        ) {
+            Column(
+                modifier = Modifier
+                    .padding(24.dp)
+                    .verticalScroll(rememberScrollState()),
+                horizontalAlignment = Alignment.Start
+            ) {
+                Spacer(modifier = Modifier.height(24.dp))
+                Text("Profilo", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+
+                Spacer(modifier = Modifier.height(24.dp))
+            }
+        }
+    }
+}
+
+// ---------------------------------------- ACTIVITY SCREEN ----------------------------------------
+// 1. Wrapper Stateful (Collega i dati)
+@Composable
+fun ActivityScreen(viewModel: HomeVM, onChatClick: (String) -> Unit) {
+    // Osserviamo la lista dei match dal ViewModel
+    val state by viewModel.uiState.collectAsState()
+
+    ActivityContent(
+        matchesList = state.matchesList,
+        onChatClick = onChatClick
+    )
+}
+
+// 2. Content Stateless (Disegna la UI)
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ActivityContent(
+    matchesList: List<MatchEntity>,
+    onChatClick: (String) -> Unit
+) {
+    Column(
+        modifier = Modifier.fillMaxSize()
+    ) {
+        // TopBar integrata nella pagina
+        TopAppBar(
+            title = { Text("Le tue Attività", fontWeight = FontWeight.Bold) },
+            colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
+        )
+
+        if (matchesList.isEmpty()) {
+            EmptyStateMessage()
+        } else {
+            LazyColumn(
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                item {
+                    Text(
+                        "Match Recenti",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = Color.Gray,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                }
+                items(matchesList) { match ->
+                    ActivityMatchItem(match, onChatClick)
+                }
+            }
+        }
+    }
+}
+
+// --- Componente: La singola riga (Card) del Match ---
+@Composable
+fun ActivityMatchItem(match: MatchEntity, onClick: (String) -> Unit) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick(match.requesterId) },
+        elevation = CardDefaults.cardElevation(2.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White)
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Avatar con Iniziale
+            Surface(
+                shape = CircleShape,
+                color = HandyPrimary,
+                modifier = Modifier.size(50.dp)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Text(
+                        text = match.username.take(1).uppercase(),
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 20.sp
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.width(16.dp))
+
+            // Dati Testuali
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = match.username,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = "Categoria: ${match.category}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color.DarkGray
+                )
+
+                // Formattazione Data
+                val dateFormat = SimpleDateFormat("dd MMM, HH:mm", Locale.getDefault())
+                Text(
+                    text = dateFormat.format(match.timestamp),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color.Gray
+                )
+            }
+
+            // Icona freccia
+            Icon(
+                imageVector = Icons.Default.ChevronRight, // O ArrowForward
+                contentDescription = null,
+                tint = Color.Gray
+            )
+        }
+    }
+}
+
+// --- Componente: Messaggio Vuoto ---
+@Composable
+fun EmptyStateMessage() {
+    Column(
+        modifier = Modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Icon(
+            imageVector = Icons.Default.NotificationsOff, // O un'altra icona appropriata
+            contentDescription = null,
+            modifier = Modifier.size(80.dp),
+            tint = Color.LightGray
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        Text(
+            text = "Nessuna attività recente",
+            style = MaterialTheme.typography.titleMedium,
+            color = Color.Gray
+        )
+        Text(
+            text = "Quando troverai un match, apparirà qui.",
+            style = MaterialTheme.typography.bodySmall,
+            color = Color.LightGray
+        )
+    }
+}
+
+// ------------------------------------ COMPONENTI UI SPECIFICI ------------------------------------
+
+// Fleg Gestione Modalità
 @Composable
 fun ModeSwitchCard(isHelper: Boolean, onToggle: (Boolean) -> Unit) {
     Card(
@@ -170,6 +603,7 @@ fun ModeSwitchCard(isHelper: Boolean, onToggle: (Boolean) -> Unit) {
     }
 }
 
+
 @Composable
 fun HelperView() {
     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
@@ -182,17 +616,21 @@ fun HelperView() {
         RadarAnimation()
     }
 }
-
 @Composable
-fun RequesterView(state: HomeUiState, viewModel: HomeVM) {
+fun RequesterView(
+    state: HomeUiState,
+    onCategorySelect: (String) -> Unit,
+    onRadiusChange: (Float) -> Unit,
+    onSearchClick: () -> Unit
+) {
     Column(modifier = Modifier.fillMaxWidth()) {
         Text("Di cosa hai bisogno?", fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 8.dp))
 
-        // Categorie (Pulsanti semplici per ora)
+        // Categorie (Pulsanti semplici per ora, da introdurre meccannismo migliore)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            CategoryChip("Idraulico", state.selectedCategory == "Idraulico") { viewModel.updateSearchParameters("Idraulico", state.toleranceRadius) }
-            CategoryChip("Elettricista", state.selectedCategory == "Elettricista") { viewModel.updateSearchParameters("Elettricista", state.toleranceRadius) }
-            CategoryChip("Medico", state.selectedCategory == "Medico") { viewModel.updateSearchParameters("Medico", state.toleranceRadius) }
+            CategoryChip("Idraulico", state.selectedCategory == "Idraulico") { onCategorySelect("Idraulico") }
+            CategoryChip("Elettricista", state.selectedCategory == "Elettricista") { onCategorySelect("Elettricista") }
+            CategoryChip("Medico", state.selectedCategory == "Medico") { onCategorySelect("Medico") }
         }
 
         Spacer(modifier = Modifier.height(24.dp))
@@ -200,7 +638,7 @@ fun RequesterView(state: HomeUiState, viewModel: HomeVM) {
         Text("Raggio di ricerca: ${state.toleranceRadius.toInt()} km", fontWeight = FontWeight.Bold)
         Slider(
             value = state.toleranceRadius,
-            onValueChange = { viewModel.updateSearchParameters(state.selectedCategory, it) },
+            onValueChange = { onRadiusChange(it) },
             valueRange = 1f..50f,
             steps = 4
         )
@@ -208,7 +646,7 @@ fun RequesterView(state: HomeUiState, viewModel: HomeVM) {
         Spacer(modifier = Modifier.height(24.dp))
 
         Button(
-            onClick = { viewModel.sendHelpRequest() },
+            onClick = onSearchClick,
             colors = ButtonDefaults.buttonColors(containerColor = HandySecondary),
             modifier = Modifier.fillMaxWidth().height(56.dp),
             shape = RoundedCornerShape(12.dp)
@@ -220,8 +658,7 @@ fun RequesterView(state: HomeUiState, viewModel: HomeVM) {
     }
 }
 
-// --- 4. ACCESSORI GRAFICI ---
-
+// --------------------------------------- ACCESSORI GRAFICI ---------------------------------------
 @Composable
 fun RadarAnimation() {
     val infiniteTransition = rememberInfiniteTransition(label = "radar")
@@ -235,7 +672,6 @@ fun RadarAnimation() {
     )
 
     Box(contentAlignment = Alignment.Center) {
-        // Cerchio che si espande
         Box(modifier = Modifier
             .size(100.dp)
             .scale(scale)
@@ -243,7 +679,6 @@ fun RadarAnimation() {
             .clip(CircleShape)
             .background(HandyPrimary.copy(alpha = 0.3f))
         )
-        // Punto centrale fisso
         Icon(
             imageVector = Icons.Default.Settings, // Icona ingranaggio o simbolo helper
             contentDescription = null,
@@ -291,19 +726,81 @@ fun PlaceholderScreen(title: String, icon: ImageVector) {
 }
 
 @Composable
-fun ProfileScreen(viewModel: HomeVM) {
-    val state by viewModel.uiState.collectAsState()
-    Column(modifier = Modifier.padding(24.dp)) {
-        Text("Il tuo Profilo", fontSize = 24.sp, fontWeight = FontWeight.Bold)
-        Spacer(modifier = Modifier.height(16.dp))
-        Card(modifier = Modifier.fillMaxWidth()) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text("ID Utente:", fontSize = 12.sp, color = Color.Gray)
-                Text(state.userId, fontWeight = FontWeight.Bold)
-                Spacer(modifier = Modifier.height(8.dp))
-                Text("Categoria:", fontSize = 12.sp, color = Color.Gray)
-                Text(state.selectedCategory, fontWeight = FontWeight.Bold)
-            }
-        }
+fun LetterAvatar(
+    name: String
+) {
+    val initials = if (name.isNotBlank()) {
+        name.trim().take(2).uppercase()
+    } else {
+        ""
     }
+
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier
+            .size(75.dp)
+            .clip(CircleShape)
+            .background(Color.White)
+            .border(3.dp, HandyPrimaryLight, CircleShape)
+    ) {
+        Text(
+            text = initials,
+            color = HandyPrimaryLight,
+            fontSize = (75 / 3.5).sp,
+            fontWeight = FontWeight.Bold
+        )
+    }
+}
+
+// --- SEZIONE PREVIEWS ---
+
+@Preview(showBackground = true, name = "1. Anteprima Registrazione")
+@Composable
+fun SignUpPreview() {
+    // Usiamo il Content Stateless, quindi non crasha!
+    SignUpContent(onSignUpClick = { _, _, _ -> })
+}
+
+@Preview(showBackground = true, name = "2. Anteprima Home Richiedente")
+@Composable
+fun HomeRequesterPreview() {
+    // Creiamo uno stato finto per la preview
+    val fakeState = HomeUiState(
+        userId = "User123",
+        isHelperMode = false,
+        selectedCategory = "Idraulico",
+        toleranceRadius = 15f
+    )
+
+    HomeContent(
+        state = fakeState,
+        onToggleHelperMode = {},
+        onDismissMatchPopup = {},
+        onSearchParamUpdate = { _, _ -> },
+        onSendHelpRequest = {}
+    )
+}
+
+@Preview(showBackground = true, name = "3. Anteprima Home Helper")
+@Composable
+fun HomeHelperPreview() {
+    val fakeState = HomeUiState(
+        userId = "HelperBob",
+        isHelperMode = true,
+        statusMessage = "In attesa di richieste..."
+    )
+
+    HomeContent(
+        state = fakeState,
+        onToggleHelperMode = {},
+        onDismissMatchPopup = {},
+        onSearchParamUpdate = { _, _ -> },
+        onSendHelpRequest = {}
+    )
+}
+
+@Preview(showBackground = true, name = "4. Anteprima Profilo")
+@Composable
+fun ProfilePreview() {
+    ProfileContent(username = "User123")
 }

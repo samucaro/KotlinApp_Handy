@@ -8,27 +8,25 @@ class MatchingService(
     private val storedClientDao: StoredClientDAO
 ) {
     suspend fun verifyMatch(tupla: TuplaDTO): Boolean {
-        Log.d("HandyMath", "--- INIZIO VERIFICA MATCH ---")
-        Log.d("HandyMath", "Target ID richiesto: ${tupla.t2TargetId}")
+        Log.i("HandyMatch", "--- INIZIO PROCESSO DI MATCHING ---")
+        Log.d("HandyMatch", "Target ID (Io): ${tupla.t2TargetId}")
 
         // 1. Uso T2 (Target ID) per cercare nel DB locale
         val storedEntity = storedClientDao.getProfile(tupla.t2TargetId)
         /*?: // Non custodisce questo utente, ignora la richiesta
         return false*/
         if (storedEntity == null) {
-            Log.e("HandyMath", "⚠️ ATTENZIONE: Nessun profilo trovato nel DB locale per questo ID.")
-            Log.e("HandyMath", "Motivo: L'Heartbeat precedente non è stato salvato o l'ID è diverso.")
-
-            // --- TRUCCO PER IL TEST ---
-            Log.w("HandyMath", "🚨 TEST MODE ATTIVO: Forzo il risultato a TRUE per mostrarti il popup!")
-            return true
+            Log.e("HandyMatch", "MATCH FALLITO: Non ho dati salvati per il Target ID ${tupla.t2TargetId}")
+            Log.e("HandyMatch", "Possibile causa: Il server ha mandato il match prima che io ricevessi lo STORE_PROFILE.")
+            return false
         }
 
         val storedProfile = storedEntity.profile
+        Log.d("HandyMatch", "Profilo Locale Trovato: ${storedProfile.username} (Pos offuscata salvata: ${storedProfile.reblurredX}, ${storedProfile.reblurredY})")
 
         // 2. Orchestrazione del calcolo
         return try {
-            PrivacyEngine.computeMatching(
+            val isCompatible = PrivacyEngine.computeMatching(
                 t3 = tupla.t3BetaPlusX,
                 t4 = tupla.t4BetaPlusY,
                 t5 = tupla.t5SumUserBlur,
@@ -37,9 +35,15 @@ class MatchingService(
                 storedX = storedProfile.reblurredX,
                 storedY = storedProfile.reblurredY
             )
+            if (isCompatible) {
+                Log.i("HandyMatch", "RISULTATO: COMPATIBILE! Distanza < Tolleranza")
+            } else {
+                Log.w("HandyMatch", "RISULTATO: NON COMPATIBILE. Utente troppo lontano.")
+            }
+            isCompatible
         } catch (e: Exception) {
-            Log.e("HandyMath", "Errore in PrivacyEngine: ${e.message}. Ritorno TRUE per test.")
-            true
+            Log.e("HandyMatch", "Errore matematico nel matching", e)
+            false
         }
     }
 }

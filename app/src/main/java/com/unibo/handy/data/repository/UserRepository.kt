@@ -3,50 +3,91 @@ package com.unibo.handy.data.repository
 import android.util.Log
 import com.google.gson.Gson
 import com.unibo.handy.data.LocationClientSensor
+import com.unibo.handy.data.db.dao.ChatDAO
+import com.unibo.handy.data.db.dao.MatchDAO
 import com.unibo.handy.data.db.dao.StoredClientDAO
 import com.unibo.handy.data.db.dao.UserDAO
+import com.unibo.handy.data.db.entity.MatchEntity
 import com.unibo.handy.data.db.entity.UserEntity
-import com.unibo.handy.data.network.WebSocketManager
 import com.unibo.handy.data.network.ServiceAPI
+import com.unibo.handy.data.network.WebSocketManager
 import com.unibo.handy.data.network.dto.HeartBeatDTO
 import com.unibo.handy.data.network.dto.HelpRequestDTO
 import com.unibo.handy.data.network.dto.RegistrationDTO
 import com.unibo.handy.data.repository.strategy.ComputeMatchStrategy
 import com.unibo.handy.data.repository.strategy.MessageStrategy
 import com.unibo.handy.data.repository.strategy.StoreProfileStrategy
+import com.unibo.handy.data.repository.strategy.UpdatePositionStrategy
+import com.unibo.handy.data.repository.strategy.UpdateRatingDataStrategy
 import com.unibo.handy.domain.MatchingService
 import com.unibo.handy.domain.PrivacyEngine
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 class UserRepository(
     // Dati DB
     private val userDao: UserDAO,
-    private val storedClientDao: StoredClientDAO,
+    storedClientDao: StoredClientDAO,
+    private val matchDao: MatchDAO,
+    private val chatDao: ChatDAO,
     // Dati di rete
     private val webSocketManager: WebSocketManager,
     private val apiService: ServiceAPI,
     // Dati sensori
     private val locationClient: LocationClientSensor,
     // Servizio di matching
-    private val matchingService: MatchingService
+    matchingService: MatchingService
 ) {
+    private val repositoryScope: CoroutineScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     val currentUserFlow: Flow<UserEntity?> = userDao.getUserFlow()
-    private val _matchEvents = MutableSharedFlow<String>()
+    val matchesFlow: Flow<List<MatchEntity>> = matchDao.getAllMatches()
+
+    private val _matchEvents = MutableSharedFlow<String>(
+        replay = 0,
+        extraBufferCapacity = 1,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST
+    )
     val matchEvents = _matchEvents.asSharedFlow()
     private val gson = Gson()
     private val strategies: Map<String, MessageStrategy> = mapOf(
         "STORE_PROFILE" to StoreProfileStrategy(storedClientDao),
         "UPDATE_PROFILE" to StoreProfileStrategy(storedClientDao),
-        "UPDATE_RATINGDATA" to StoreProfileStrategy(storedClientDao),
+        "UPDATE_POSITION" to UpdatePositionStrategy(storedClientDao),
+        //"UPDATE_RATINGDATA" to UpdateRatingDataStrategy(storedClientDao),
         "COMPUTE_MATCH" to ComputeMatchStrategy(matchingService, webSocketManager, gson) { matchInfo ->
             Log.d("UserRepository", "Callback Match attivata! Notifico la UI.")
-            _matchEvents.tryEmit(matchInfo)
+            Log.i("HandyFlow", "MATCH CALCOLATO POSITIVO! Info: $matchInfo")
+            saveMatchToDb(matchInfo)
+            //_matchEvents.tryEmit(matchInfo)
         }
     )
+
+    // Attiva la connessione stateful con il server tramite WebSocket
+    suspend fun ensureWebSocketConnection() {
+        val user = userDao.getUserSnapshot() ?: return
+
+        if (!webSocketManager.isConnected()) {
+            Log.d("HandyWS", "Connessione automatica per: ${user.userId}")
+            webSocketManager.connect(user.userId)
+            // Usiamo un job separato o un collect che non blocchi il chiamante
+            // se viene chiamato più volte
+            startListeningForMessages()
+        }
+    }
+    private suspend fun startListeningForMessages() {
+        repositoryScope.launch {
+            webSocketManager.incomingMessages.collect { jsonString ->
+                handleServerMessage(jsonString)
+            }
+        }
+    }
 
     // Metodo di semplice registrazione/aggiornamento nel sistema (profile_update_request)
     suspend fun updateUserProfile(username: String, email: String, psw: String, category: String) {
@@ -97,21 +138,6 @@ class UserRepository(
       *(Fase 2: Profile-Update-Request Fig. 4b paper)
       *Solo per Helper client
      **/
-    // Attiva la connessione stateful con il server tramite WebSocket
-    suspend fun startListeningForJobs() {
-        // Recuperiamo il nostro ID sessione
-        val user = userDao.getUserSnapshot() ?: return
-
-        Log.d("HandyWS", "Tentativo connessione per ID: ${user.userId}")
-        // Connette il WebSocket
-        webSocketManager.connect(user.userId)
-
-        // Ascoltiamo i messaggi in arrivo
-        webSocketManager.incomingMessages.collect { jsonString ->
-            handleServerMessage(jsonString)
-        }
-    }
-
     // Metodo di invio del Heartbeat al server valido solo per le coordinate GPS
     suspend fun sendHeartbeat() = withContext(Dispatchers.IO) {
         Log.e("HandyDEBUG", "--- INIZIO HEARTBEAT ---")
@@ -186,8 +212,11 @@ class UserRepository(
         val location = locationClient.getCurrentLocation()
         if (location == null) {
             Log.w("UserRepository", "Impossible to get GPS position.")
+            Log.e("HandyFlow", "Impossibile inviare richiesta: GPS nullo.")
             return
         }
+
+        Log.d("HandyFlow", "Posizione Reale Richiedente: ${location.latitude}, ${location.longitude}")
 
         // 3. Offuscamento (Uso PrivacyEngine - Fase REQUEST)
         val blurredData = PrivacyEngine.createHelpRequest(
@@ -195,6 +224,8 @@ class UserRepository(
             lon = location.longitude,
             tol = tolerance
         )
+
+        Log.d("HandyFlow", "Dati offuscati generati (Beta+): X=${blurredData.betaPlusX}, Y=${blurredData.betaPlusY}")
 
         // 4. Creazione DTO
         val dto = HelpRequestDTO(
@@ -209,6 +240,36 @@ class UserRepository(
         // 5. Invio al Server
         // Il server riceverà questo DTO e lo inoltrerà ai Service Clients
         // che custodiscono gli idraulici per fare il matching.
-        apiService.sendHelpRequest(dto)
+        try {
+            val response = apiService.sendHelpRequest(dto)
+            if (response.isSuccessful) {
+                Log.i("HandyFlow", "Richiesta Aiuto inviata con successo al Server!")
+            } else {
+                Log.e("HandyFlow", "Errore invio richiesta: ${response.code()}")
+            }
+        } catch (e: Exception) {
+            Log.e("HandyFlow", "Eccezione di rete invio richiesta", e)
+        }
+    }
+
+    private fun saveMatchToDb(requesterId: String) {
+        repositoryScope.launch {
+            val myProfile = userDao.getUserSnapshot()
+            if (myProfile == null) {
+                Log.e("HandyRepo", "Impossibile salvare match: Profilo utente locale non trovato.")
+                return@launch
+            }
+
+            val newMatch = MatchEntity(
+                requesterId = requesterId,
+                helperId = myProfile.userId,
+                username = "Richiedente ${requesterId.take(4)}",
+                category = myProfile.category,
+                phoneNumber = "ND" // da aggiornare
+            )
+            matchDao.insertMatch(newMatch)
+
+            _matchEvents.tryEmit(requesterId)
+        }
     }
 }

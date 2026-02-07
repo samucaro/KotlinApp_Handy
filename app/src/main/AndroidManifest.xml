@@ -5,10 +5,12 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"
         tools:ignore="ForegroundServicesPolicy" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <!-- rischiosa perché non mostra la notifica di lavoro in background
     <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION"
-        tools:ignore="BackgroundLocationPolicy" />
+        tools:ignore="BackgroundLocationPolicy" /> -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
@@ -23,22 +25,29 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.Handy"
+        android:usesCleartextTraffic="true"> <!-- Attributi dell App -->
 
-        android:usesCleartextTraffic="true">
+        <!-- Schermate App -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
             android:theme="@style/Theme.Handy">
+            <!-- Indica che MainActivity è la schermata di avvio -->
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <!-- Per operazioni in background -->
         <service
             android:name=".NetworkService"
+            android:enabled="true"
             android:foregroundServiceType="dataSync"
             android:exported="false">
         </service>
+        <!-- Per ascoltare eventi del sistema
+        <<receiver> </receiver> -->
+        <!-- Per condividere dati con altre app
+        <<provider> </provider> -->
     </application>
-
 </manifest>

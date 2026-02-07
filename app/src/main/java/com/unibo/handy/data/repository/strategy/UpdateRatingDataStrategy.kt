@@ -3,8 +3,8 @@ package com.unibo.handy.data.repository.strategy
 import android.util.Log
 import com.unibo.handy.data.db.dao.StoredClientDAO
 
-// Strategia per aggiornare le nuove recensionio o valutazioni che vengono fatte
-class UpdateRatindData(
+// Strategia per aggiornare le nuove recensioni o valutazioni che vengono fatte
+class UpdateRatingDataStrategy(
     private val storedClientDao: StoredClientDAO
 ) : MessageStrategy {
     override suspend fun handle(fullMessage: Map<*, *>) {

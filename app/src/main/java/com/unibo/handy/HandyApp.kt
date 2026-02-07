@@ -22,12 +22,14 @@ class HandyApp : Application() {
     }
     val userRepository by lazy {
         UserRepository(
-            db.userDao(),
-            db.storedClientDao(),
+            userDao = db.userDao(),
+            storedClientDao = db.storedClientDao(),
+            matchDao = db.matchDao(),
+            chatDao = db.chatDao(),
             webSocketManager = webSocketManager,
-            locationClient = locationClient,
             // API Service (Retrofit client)
             apiService = RetrofitClient.retrofitService,
+            locationClient = locationClient,
             matchingService = matchingService
         )
     }
