@@ -87,27 +87,30 @@ async def register_user(data: RegistrationDTO):
     Endpoint HTTP chiamato da Retrofit.
     Salva l'utente nel registro e imposta la mappa di storage.
     """
-    print(f"🌍 API REGISTRAZIONE: {data.clientId} (Helper: {data.isHelper})")
+    print(f"API REGISTRAZIONE: {data.clientId} (Helper: {data.isHelper})")
     
     # 1. Aggiorna il registro utenti
     client_registry[data.clientId] = {
         "category": data.category,
         "isHelper": data.isHelper,
-        "last_known_r": 0 # Inizializzato a 0
+        "last_known_r": client_registry.get(data.clientId, {}).get("last_known_r", 0)
     }
 
     # 2. SETUP DI TEST: Auto-assegnazione
     # Ogni utente è il Service Client di se stesso per il test locale.
-    storage_map[data.clientId] = data.clientId
+    if data.isHelper:
+        storage_map[data.clientId] = data.clientId
+    else:
+        pass
 
-    return {"status": "registered", "clientId": data.clientId}
+    return {"status": "registered/updated", "clientId": data.clientId}
 
 @app.post("/heartbeat")
 async def receive_heartbeat(data: HeartBeatModel):
     """
     Riceve la posizione offuscata via HTTP e notifica il Service Client via WebSocket.
     """
-    print(f"💓 HEARTBEAT HTTP RICEVUTO da {data.clientId}")
+    print(f"HEARTBEAT HTTP RICEVUTO da {data.clientId}")
     
     target_uuid = data.clientId
 
@@ -159,7 +162,7 @@ async def receive_help_request(data: HelpRequestModel):
     Riceve la richiesta (BetaPlus), seleziona i candidati (Service Clients)
     e invia loro le Tuple per il calcolo della distanza.
     """
-    print(f"🔎 RICHIESTA HTTP: {data.clientId} cerca {data.category}")
+    print(f"RICHIESTA HTTP: {data.clientId} cerca {data.category}")
     
     requester_id = data.clientId
     category_needed = data.category
@@ -167,7 +170,9 @@ async def receive_help_request(data: HelpRequestModel):
     # 1. Filtra candidati (Chi è della categoria giusta?)
     candidates = [
         uid for uid, info in client_registry.items()
-        if info.get("category") == category_needed and uid != requester_id
+        if info.get("category") == category_needed
+        and info.get("isHelper") is True
+        and uid != requester_id
     ]
 
     # TRUCCO PER IL TEST LOCALE:
@@ -338,6 +343,40 @@ async def handle_help_request(data: dict):
             await manager.send_json(msg, service_client_id)
             print(f"MATCH CHECK: Inviata tupla a {service_client_id} (Target: {target_id})")
 
+async def handle_chat_message(data: dict, sender_id: str):
+    """
+    Gestisce l'inoltro dei messaggi di chat tra utenti.
+    Payload atteso: {"to": "uuid_destinatario", "message": "testo"}
+    """
+    payload = data.get("payload", {})
+    recipient_id = payload.get("to")
+    message_text = payload.get("message")
+
+    if not recipient_id or not message_text:
+        return
+
+    print(f"CHAT: Da {sender_id} a {recipient_id}: {message_text}")
+
+    # 1. Cerca se il destinatario è connesso
+    if recipient_id in active_connections:
+        socket = active_connections[recipient_id]
+        
+        # 2. Costruisci il messaggio di inoltro
+        out_msg = {
+            "type": "CHAT_MESSAGE",
+            "payload": {
+                "from": sender_id,      # Importante: chi lo manda?
+                "message": message_text,
+                "timestamp": int(time.time() * 1000)
+            }
+        }
+        
+        # 3. Invia
+        await socket.send_text(json.dumps(out_msg))
+    else:
+        # Qui potresti salvare il messaggio in una lista "pending" se volessi supportare l'offline
+        print(f"Destinatario {recipient_id} non connesso. Messaggio perso (per ora).")
+
 
 # --- ROUTING WEBSOCKET ---
 
@@ -363,12 +402,11 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
                 # È una richiesta di aiuto
                 await handle_help_request(data)
             elif data.get("type") == "MATCH_FOUND":
-                print(f"✅ MATCH CONFIRMED! Il Client {client_id} ha validato la connessione.")
+                print(f"MATCH CONFIRMED! Il Client {client_id} ha validato la connessione.")
                 print(f"   - Requester: {data.get('requester_id')}")
                 print(f"   - Target: {data.get('target_id')}")
-                
-                # QUI POTRESTI: Inviare una notifica push al Richiedente ("Trovato!")
-                # Per ora ci basta il log verde.
+            elif data.get("type") == "CHAT_MESSAGE":
+                await handle_chat_message(data, client_id)
             else:
                 print(f"WARN: Messaggio WS non riconosciuto da {client_id}")
 

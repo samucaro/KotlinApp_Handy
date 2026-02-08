@@ -26,11 +26,11 @@ def mod_add(a, b):
     return ((a % P) + (b % P)) % P
 
 def main():
-    print(f"--- 🚀 AVVIO SIMULATORE REQUESTER ---")
+    print(f"--- AVVIO SIMULATORE REQUESTER ---")
     
     # 1. Generazione ID
     client_id = str(uuid.uuid4())
-    print(f"🆔 ID Generato: {client_id}")
+    print(f"ID Generato: {client_id}")
 
     # 2. Registrazione (Opzionale ma consigliata)
     reg_payload = {
@@ -41,11 +41,11 @@ def main():
     try:
         r = requests.post(f"{SERVER_URL}/register_profile", json=reg_payload)
         if r.status_code == 200:
-            print("✅ Registrazione Requester OK")
+            print("Registrazione Requester OK")
         else:
-            print(f"⚠️ Warning registrazione: {r.status_code}")
+            print(f"Warning registrazione: {r.status_code}")
     except Exception as e:
-        print(f"❌ Errore connessione al server: {e}")
+        print(f"Errore connessione al server: {e}")
         return
 
     # 3. Preparazione Matematica (Beta Plus) - COME L'APP
@@ -60,8 +60,8 @@ def main():
     # Nel tuo codice Kotlin passi tol.toDouble(), qui mandiamo 500
     tolerance = 5000
 
-    print(f"📍 Posizione Requester: {REQUESTER_LAT}, {REQUESTER_LON}")
-    print(f"🔒 Dati Offuscati (Beta+): X={beta_plus_x}, Y={beta_plus_y}")
+    print(f"Posizione Requester: {REQUESTER_LAT}, {REQUESTER_LON}")
+    print(f"Dati Offuscati (Beta+): X={beta_plus_x}, Y={beta_plus_y}")
 
     # 4. Invio Richiesta Aiuto
     help_payload = {
@@ -73,19 +73,19 @@ def main():
         "encryptedTol": tolerance
     }
 
-    print("\n📨 Invio richiesta al server...")
+    print("\nInvio richiesta al server...")
     try:
         # Assumo che l'endpoint sia /help_request come da standard naming
         r = requests.post(f"{SERVER_URL}/help_request", json=help_payload)
         
         if r.status_code == 200:
-            print("✅ RICHIESTA INVIATA CON SUCCESSO!")
-            print("👀 Ora guarda il Logcat di Android e lo schermo dell'Emulatore!")
+            print("RICHIESTA INVIATA CON SUCCESSO!")
+            print("Ora guarda il Logcat di Android e lo schermo dell'Emulatore!")
         else:
-            print(f"❌ Errore server: {r.status_code} - {r.text}")
+            print(f"Errore server: {r.status_code} - {r.text}")
             
     except Exception as e:
-        print(f"❌ Errore invio richiesta: {e}")
+        print(f"Errore invio richiesta: {e}")
 
 if __name__ == "__main__":
     main()

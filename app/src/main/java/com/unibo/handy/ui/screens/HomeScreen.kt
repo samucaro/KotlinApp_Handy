@@ -20,6 +20,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -47,7 +48,8 @@ fun HomeScreen(viewModel: HomeVM) {
         onToggleHelperMode = { viewModel.toggleHelperMode(it) },
         onDismissMatchPopup = { viewModel.dismissMatchPopup() },
         onSearchParamUpdate = { cat, radius -> viewModel.updateSearchParameters(cat, radius) },
-        onSendHelpRequest = { viewModel.sendHelpRequest() }
+        onSendHelpRequest = { viewModel.sendHelpRequest() },
+        onAcceptMatch = { matchId -> viewModel.acceptMatch(matchId) }
     )
 }
 // Content Stateless (Solo UI)
@@ -57,7 +59,8 @@ fun HomeContent(
     onToggleHelperMode: (Boolean) -> Unit,
     onDismissMatchPopup: () -> Unit,
     onSearchParamUpdate: (String, Float) -> Unit,
-    onSendHelpRequest: () -> Unit
+    onSendHelpRequest: () -> Unit,
+    onAcceptMatch: (String) -> Unit
 ) {
     Column(
         modifier = Modifier.fillMaxSize().padding(16.dp),
@@ -106,7 +109,7 @@ fun HomeContent(
             )
         }
 
-        Spacer(modifier = Modifier.Companion.weight(1f))
+        Spacer(modifier = Modifier.weight(1f))
         Text(state.statusMessage, fontSize = 12.sp, color = Color.Gray)
 
         // POPUP MATCH TROVATO
@@ -115,24 +118,32 @@ fun HomeContent(
                 onDismissRequest = onDismissMatchPopup,
                 title = {
                     Text(
-                        text = "MATCH TROVATO! 🎉",
+                        text = "MATCH TROVATO!",
                         color = Color(0xFF2E7D32),
                         fontWeight = FontWeight.Bold
                     )
                 },
                 text = {
                     Column {
-                        Text("Un Helper è disponibile vicino a te!")
+                        Text("Un Utente sta cercando aiuto vicino a te")
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(text = state.statusMessage)
                     }
                 },
+
                 confirmButton = {
                     Button(
-                        onClick = onDismissMatchPopup,
+                        onClick = {
+                            onAcceptMatch(state.currentMatchId)
+                        },
                         colors = ButtonDefaults.buttonColors(containerColor = HandySecondary)
                     ) {
-                        Text("Contatta Ora") // da modificare
+                        Text("Accetta e Chatta")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = onDismissMatchPopup) {
+                        Text("Decidi dopo")
                     }
                 },
                 icon = { Icon(Icons.Filled.Check, contentDescription = null, tint = HandyPrimary) }
@@ -176,7 +187,7 @@ fun RequesterView(
     Column(modifier = Modifier.fillMaxWidth()) {
         Text(
             "Di cosa hai bisogno?",
-            fontWeight = FontWeight.Companion.Bold,
+            fontWeight = FontWeight.Bold,
             modifier = Modifier.padding(bottom = 8.dp)
         )
 

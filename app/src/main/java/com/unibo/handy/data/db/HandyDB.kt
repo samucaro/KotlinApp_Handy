@@ -12,6 +12,8 @@ import com.unibo.handy.data.db.entity.UserEntity
 import com.unibo.handy.data.db.dao.UserDAO
 import com.unibo.handy.data.db.entity.ChatMessagesEntity
 import com.unibo.handy.data.db.entity.MatchEntity
+import androidx.room.TypeConverters
+import com.unibo.handy.domain.HandyTypeConverters
 
 @Database(
     entities = [
@@ -23,6 +25,7 @@ import com.unibo.handy.data.db.entity.MatchEntity
     version = 2,
     exportSchema = true
 )
+@TypeConverters(HandyTypeConverters::class)
 abstract class HandyDB : RoomDatabase() {
     // per utilizzare le query sull'oggetto che implementa l'interfaccia
     abstract fun userDao(): UserDAO

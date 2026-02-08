@@ -1,31 +1,41 @@
 package com.unibo.handy.ui
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.unibo.handy.HandyApp
+import com.unibo.handy.data.db.dao.MatchDAO
 import com.unibo.handy.data.repository.ChatRepository
 import com.unibo.handy.data.repository.UserRepository
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 class HomeVM(
     private val userRepository: UserRepository,
-    private val chatRepository: ChatRepository
+    private val chatRepository: ChatRepository,
+    private val matchDao: MatchDAO
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(HomeUiState()) // privata (visibile solo dal VM)
     // uiState è lo specchio di _uiState quindi chiunque cambia compose percepisce la modifica
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow() // pubblica (visibile alla UI Compose)
+    // Flusso per "Activity" (Pending)
+    val pendingMatches = matchDao.getPendingMatches()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    // Flusso per "Chat" (Active)
+    val activeChats = matchDao.getActiveChats()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     init {
         // Il VM non "fa" le cose, "osserva" i cambiamenti fatti da altri (Repo/Service)
         observeUserUpdates()
-        observeMatches()
         observeMatchEvents()
     }
 
@@ -51,23 +61,14 @@ class HomeVM(
         }
     }
 
-    private fun observeMatches() {
-        viewModelScope.launch {
-            // Appena il Service o la strategia trovano un match e lo salvano nel DB,
-            // questo flusso scatta e aggiorna la lista a video
-            userRepository.matchesFlow.collect { list ->
-                _uiState.update { it.copy(matchesList = list) }
-            }
-        }
-    }
-
     private fun observeMatchEvents() {
         viewModelScope.launch {
             userRepository.matchEvents.collect { matchMessage ->
                 _uiState.update {
                     it.copy(
                         statusMessage = "MATCH TROVATO! $matchMessage",
-                        showMatchSuccess = true
+                        showMatchSuccess = true,
+                        currentMatchId = matchMessage
                     )
                 }
             }
@@ -135,15 +136,34 @@ class HomeVM(
         }
     }
 
+    fun acceptMatch(matchId: String) {
+        viewModelScope.launch {
+            try {
+                chatRepository.acceptMatch(matchId)
+                dismissMatchPopup() // Chiude il popup se aperto
+            } catch (e: Exception) {
+                Log.e("HomeVM", "Errore accept", e)
+            }
+        }
+    }
+
+    fun rejectMatch(matchId: String) {
+        viewModelScope.launch {
+            chatRepository.rejectMatch(matchId)
+            dismissMatchPopup()
+        }
+    }
+
     // ------------------------------------------ FACTORY ------------------------------------------
     companion object {
         val Factory: ViewModelProvider.Factory = viewModelFactory {
             initializer {
                 val application =
-                    (this[ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY] as HandyApp)
+                    (this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY] as HandyApp)
                 HomeVM(
                     userRepository = application.userRepository,
-                    chatRepository = application.chatRepository
+                    chatRepository = application.chatRepository,
+                    matchDao = application.db.matchDao()
                 )
 
             }

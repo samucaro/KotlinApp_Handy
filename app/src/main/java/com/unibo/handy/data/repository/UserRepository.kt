@@ -7,6 +7,7 @@ import com.unibo.handy.data.db.dao.MatchDAO
 import com.unibo.handy.data.db.dao.StoredClientDAO
 import com.unibo.handy.data.db.dao.UserDAO
 import com.unibo.handy.data.db.entity.MatchEntity
+import com.unibo.handy.data.db.entity.MatchStatus
 import com.unibo.handy.data.db.entity.UserEntity
 import com.unibo.handy.data.network.ServiceAPI
 import com.unibo.handy.data.network.WebSocketManager
@@ -47,7 +48,7 @@ class UserRepository(
     private val repositoryScope: CoroutineScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     // Il Flow permette la reattività istantane a modifiche nel DB locale
     val currentUserFlow: Flow<UserEntity?> = userDao.getUserFlow()
-    val matchesFlow: Flow<List<MatchEntity>> = matchDao.getAllMatches()
+    //val matchesFlow: Flow<List<MatchEntity>> = matchDao.getAllMatches()
 
     private val _matchEvents = MutableSharedFlow<String>(
         replay = 0,
@@ -273,7 +274,8 @@ class UserRepository(
                 helperId = myProfile.userId,
                 username = "Richiedente ${requesterId.take(4)}",
                 category = myProfile.category,
-                phoneNumber = "ND" // da aggiornare
+                phoneNumber = "ND", // da aggiornare
+                status = MatchStatus.PENDING
             )
             matchDao.insertMatch(newMatch)
 

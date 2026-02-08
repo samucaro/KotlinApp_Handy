@@ -32,7 +32,12 @@ class HandyApp : Application() {
     }
 
     val chatRepository by lazy {
-        ChatRepository(db.chatDao(), db.userDao(), webSocketManager)
+        ChatRepository(
+            db.chatDao(),
+            db.userDao(),
+            db.matchDao(),
+            webSocketManager
+        )
     }
     val userRepository by lazy {
         UserRepository(

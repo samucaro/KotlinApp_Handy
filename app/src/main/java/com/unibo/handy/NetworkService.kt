@@ -1,8 +1,10 @@
 package com.unibo.handy
 
+import android.app.Notification
 import android.app.Service
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.os.Build
 import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
@@ -32,50 +34,28 @@ class NetworkService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         Log.i("HandyService", "Service Started/Resumed")
 
-        // 1. Avvia la notifica Foreground (Obbligatorio subito)
-        startForegroundServiceNotification()
+        val notification = NotificationCompat.Builder(this, HandyApp.CHANNEL_ID)
+            .setContentTitle("Handy Attivo")
+            .setContentText("Ricerca in corso...")
+            .setSmallIcon(android.R.drawable.ic_menu_mylocation)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .build()
 
-        // 2. Avvia la logica (Pattern "Idempotente": se è già attivo, resetta o ignora)
-        startBackgroundLogic()
-
-        /*createNotificationChannel()
-
-        val notification = createNotification()
         try {
             startForeground(
                 1,
                 notification,
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC // o FOREGROUND_SERVICE_TYPE_LOCATION
             )
         } catch (e: Exception) {
-            Log.e("HandyDEBUG", "Errore startForeground: ${e.message}")
+            Log.e("HandyService", "CRASH startForeground: ${e.message}")
+            stopSelf()
         }
 
-        coroutineScope.launch {
-            repository.currentUserFlow.collect { user ->
-                if (user != null) {
-                    repository.ensureWebSocketConnection()
-                }
-            }
-        }*/
+        // 2. Avvia la logica (Pattern "Idempotente": se è già attivo, resetta o ignora)
+        startBackgroundLogic()
 
         return START_STICKY
-    }
-
-    private fun startForegroundServiceNotification() {
-        val notification = NotificationCompat.Builder(this, HandyApp.CHANNEL_ID)
-            .setContentTitle("Handy è attivo")
-            .setContentText("Ricerca match in corso...")
-            .setSmallIcon(android.R.drawable.ic_menu_mylocation)
-            .setPriority(NotificationCompat.PRIORITY_LOW)
-            .setOngoing(true)
-            .build()
-
-        try {
-            startForeground(1, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
-        } catch (e: Exception) {
-            startForeground(1, notification)
-        }
     }
 
     private fun startBackgroundLogic() {

@@ -11,5 +11,6 @@ data class HomeUiState(
     val toleranceRadius: Float = 0.0f, // Km
     val statusMessage: String = "",
     val showMatchSuccess: Boolean = false,
-    val matchesList: List<MatchEntity> = emptyList()
+    val matchesList: List<MatchEntity> = emptyList(),
+    val currentMatchId: String = ""
 )

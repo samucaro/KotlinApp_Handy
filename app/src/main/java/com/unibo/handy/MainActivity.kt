@@ -23,13 +23,10 @@ class MainActivity : ComponentActivity() {
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
         // Controllia se i permessi sono stati concessi
-        val fineLocationGranted = permissions[ACCESS_FINE_LOCATION] ?: false
-        val coarseLocationGranted = permissions[ACCESS_COARSE_LOCATION] ?: false
-        val notificationGranted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            permissions[POST_NOTIFICATIONS] ?: false
-        } else true
+        val fineLocation = permissions[ACCESS_FINE_LOCATION] ?: false
+        val coarseLocation = permissions[ACCESS_COARSE_LOCATION] ?: false
 
-        if (fineLocationGranted || coarseLocationGranted) {
+        if (fineLocation || coarseLocation) {
             Log.i("HandyMain", "Permessi Posizione concessi. Avvio il Servizio.")
             startHandyService()
         } else {
@@ -41,23 +38,13 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
-        checkAndRequestPermissions()
-
         setContent {
             HandyTheme {
                 HandyAppEntry()
             }
         }
 
-        /*requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 101)
-
-        try {
-            // Attiva subito il servizio in foreground (mostra notifica) che sarà sempre attivo
-            val intent = Intent(this, NetworkService::class.java)
-            startForegroundService(intent)
-        } catch(e: Exception) {
-            Log.e("Handy", "Errore startService: ${e.message}")
-        }*/
+        checkAndRequestPermissions()
     }
 
     private fun checkAndRequestPermissions() {
@@ -70,14 +57,16 @@ class MainActivity : ComponentActivity() {
 
         permissionsToRequest.add(ACCESS_BACKGROUND_LOCATION)
 
-        val permissionsNotGranted = permissionsToRequest.filter {
+        val missingPermissions = permissionsToRequest.filter {
             ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
         }
 
-        if (permissionsNotGranted.isNotEmpty()) {
-            requestPermissionLauncher.launch(permissionsNotGranted.toTypedArray())
-        } else {
+        if (missingPermissions.isEmpty()) {
+            Log.i("HandyMain", "Permessi già presenti. Avvio servizio diretto.")
             startHandyService()
+        } else {
+            Log.i("HandyMain", "Mancano permessi. Richiedo all'utente.")
+            requestPermissionLauncher.launch(missingPermissions.toTypedArray())
         }
     }
 
