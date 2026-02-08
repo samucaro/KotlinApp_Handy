@@ -3,7 +3,6 @@ package com.unibo.handy.data.repository
 import android.util.Log
 import com.google.gson.Gson
 import com.unibo.handy.data.LocationClientSensor
-import com.unibo.handy.data.db.dao.ChatDAO
 import com.unibo.handy.data.db.dao.MatchDAO
 import com.unibo.handy.data.db.dao.StoredClientDAO
 import com.unibo.handy.data.db.dao.UserDAO
@@ -18,7 +17,6 @@ import com.unibo.handy.data.repository.strategy.ComputeMatchStrategy
 import com.unibo.handy.data.repository.strategy.MessageStrategy
 import com.unibo.handy.data.repository.strategy.StoreProfileStrategy
 import com.unibo.handy.data.repository.strategy.UpdatePositionStrategy
-import com.unibo.handy.data.repository.strategy.UpdateRatingDataStrategy
 import com.unibo.handy.domain.MatchingService
 import com.unibo.handy.domain.PrivacyEngine
 import kotlinx.coroutines.CoroutineScope
@@ -45,7 +43,9 @@ class UserRepository(
     // Servizio di matching
     matchingService: MatchingService
 ) {
+    // Per non bloccare lo UI Thread, SupervisorJob serve per non bloccare l'intero processo padre
     private val repositoryScope: CoroutineScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    // Il Flow permette la reattività istantane a modifiche nel DB locale
     val currentUserFlow: Flow<UserEntity?> = userDao.getUserFlow()
     val matchesFlow: Flow<List<MatchEntity>> = matchDao.getAllMatches()
 

@@ -1,4 +1,4 @@
-package com.unibo.handy.ui.theme
+package com.unibo.handy.ui
 
 import com.unibo.handy.data.db.entity.MatchEntity
 

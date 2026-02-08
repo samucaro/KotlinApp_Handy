@@ -1,0 +1,153 @@
+package com.unibo.handy.ui.screens
+
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.unibo.handy.R
+import com.unibo.handy.ui.HomeVM
+
+// Wrapper Stateful (Gestisce il ViewModel)
+@Composable
+fun SignUpScreen(viewModel: HomeVM, onSignUpSuccess: () -> Unit) {
+    var username by remember { mutableStateOf("") }
+    var email by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+
+    // Se c'è un errore, potremmo mostrarlo (es. snackbar), qui semplificato
+
+    SignUpContent(
+        username = username,
+        onUsernameChange = { username = it },
+        email = email,
+        onEmailChange = { email = it },
+        password = password,
+        onPasswordChange = { password = it },
+        onSignUpClick = {
+            viewModel.updateUserProfile(username, email, password, "Generico")
+            onSignUpSuccess()
+        }
+    )
+}
+
+// Content Stateless (Solo UI)
+@Composable
+fun SignUpContent(
+    username: String, onUsernameChange: (String) -> Unit,
+    email: String, onEmailChange: (String) -> Unit,
+    password: String, onPasswordChange: (String) -> Unit,
+    onSignUpClick: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xFF006C75))
+    ) {
+        // Parte superiore: Logo e Immagine (30% dello schermo)
+        Box(
+            modifier = Modifier.fillMaxWidth().weight(0.3f),
+            contentAlignment = Alignment.Center
+        ) {
+            Image(
+                painter = painterResource(id = R.drawable.handy_icon),
+                contentDescription = "Logo Handy App",
+                modifier = Modifier
+                    .size(180.dp)
+                    .padding(top = 16.dp)
+                    .clip(CircleShape),
+                contentScale = ContentScale.Crop
+            )
+        }
+
+        // Parte inferiore: Card bianca con i campi (70% dello schermo)
+        Surface(
+            modifier = Modifier.Companion.fillMaxWidth().weight(0.7f),
+            shape = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp),
+            color = Color.Companion.White
+        ) {
+            Column(
+                modifier = Modifier.Companion.padding(24.dp).verticalScroll(rememberScrollState()),
+                horizontalAlignment = Alignment.Companion.CenterHorizontally
+            ) {
+                Text(
+                    "Ti diamo il benvenuto",
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Companion.Bold
+                )
+                Text("Inizia con il  tuo account", color = Color.Companion.Gray)
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                // CAMPI DI INPUT
+                OutlinedTextField(
+                    value = username,
+                    onValueChange = onUsernameChange,
+                    label = { Text("Username") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                OutlinedTextField(
+                    value = email,
+                    onValueChange = onEmailChange,
+                    label = { Text("Email") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = onPasswordChange,
+                    label = { Text("Password") },
+                    visualTransformation = PasswordVisualTransformation(),
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(modifier = Modifier.height(32.dp))
+
+                // BOTTONE DI REGISTRAZIONE
+                Button(
+                    onClick = onSignUpClick,
+                    modifier = Modifier.Companion.fillMaxWidth().height(56.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6F00)),
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(28.dp)
+                ) {
+                    Text("Registrati", fontSize = 18.sp)
+                }
+            }
+        }
+    }
+}

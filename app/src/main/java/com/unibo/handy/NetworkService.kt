@@ -1,38 +1,44 @@
 package com.unibo.handy
 
-import android.app.Notification
-import android.app.NotificationChannel
-import android.app.NotificationManager
 import android.app.Service
-import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
-import android.os.Build
 import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.unibo.handy.data.repository.UserRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 class NetworkService : Service() {
-    private val coroutineScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    // Serve a verificare se il servizio è già in esecuzione e impedire di creare duplicati
+    private var backgroundJob: Job? = null
     private lateinit var repository: UserRepository
 
     override fun onCreate() {
         super.onCreate()
-        val app = applicationContext as HandyApp
+        val app = applicationContext as HandyApp //cast
         repository = app.userRepository
-        createNotificationChannel()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        Log.e("HandyDEBUG", "SERVICE AVVIATO: onStartCommand chiamato!")
+        Log.i("HandyService", "Service Started/Resumed")
 
-        createNotificationChannel()
+        // 1. Avvia la notifica Foreground (Obbligatorio subito)
+        startForegroundServiceNotification()
+
+        // 2. Avvia la logica (Pattern "Idempotente": se è già attivo, resetta o ignora)
+        startBackgroundLogic()
+
+        /*createNotificationChannel()
 
         val notification = createNotification()
         try {
@@ -51,12 +57,64 @@ class NetworkService : Service() {
                     repository.ensureWebSocketConnection()
                 }
             }
-        }
+        }*/
 
         return START_STICKY
     }
 
-    private fun createNotification(): Notification {
+    private fun startForegroundServiceNotification() {
+        val notification = NotificationCompat.Builder(this, HandyApp.CHANNEL_ID)
+            .setContentTitle("Handy è attivo")
+            .setContentText("Ricerca match in corso...")
+            .setSmallIcon(android.R.drawable.ic_menu_mylocation)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setOngoing(true)
+            .build()
+
+        try {
+            startForeground(1, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
+        } catch (e: Exception) {
+            startForeground(1, notification)
+        }
+    }
+
+    private fun startBackgroundLogic() {
+        backgroundJob?.cancel()
+
+        backgroundJob = serviceScope.launch {
+            repository.currentUserFlow.collectLatest { user ->
+                if (user == null) {
+                    Log.d("HandyService", "Nessun utente loggato. Metto in pausa.")
+                    return@collectLatest
+                }
+
+                Log.d("HandyService", "Utente attivo: ${user.userId}. Avvio loop.")
+
+                // Connessione WebSocket
+                launch {
+                    try {
+                        repository.ensureWebSocketConnection()
+                    } catch (e: Exception) {
+                        Log.e("HandyService", "Errore WS", e)
+                    }
+                }
+
+                // LOOP HEARTBEAT
+                // Invia la posizione criptata ogni 30 secondi se l'utente è un Helper
+                launch {
+                    while (isActive) {
+                        if (user.helpModeActive) {
+                            Log.v("HandyService", "Invio Heartbeat periodico...")
+                            repository.sendHeartbeat()
+                        }
+                        delay(30_000)
+                    }
+                }
+            }
+        }
+    }
+
+    /*private fun createNotification(): Notification {
         return NotificationCompat.Builder(this, "HANDY_CHANNEL")
             .setContentTitle("Handy attivo")
             .setContentText("Ricerca match e connessione attivi in background")
@@ -73,11 +131,12 @@ class NetworkService : Service() {
         )
         val manager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
         manager.createNotificationChannel(channel)
-    }
+    }*/
 
     override fun onDestroy() {
+        Log.w("HandyService", "Service Destroyed")
+        serviceScope.cancel()
         super.onDestroy()
-        coroutineScope.cancel()
     }
 
     override fun onBind(intent: Intent?): IBinder? = null

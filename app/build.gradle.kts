@@ -58,6 +58,7 @@ dependencies {
     implementation(libs.androidx.compose.ui.text)
     implementation(libs.androidx.material3)
     implementation(libs.androidx.compose.foundation)
+    implementation(libs.androidx.compose.foundation.layout)
     ksp(libs.androidx.room.compiler)
 
     // --- RETROFIT & GSON (HTTP API) ---
