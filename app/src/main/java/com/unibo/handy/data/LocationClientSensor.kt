@@ -9,10 +9,12 @@ import com.google.android.gms.location.CurrentLocationRequest
 import kotlinx.coroutines.tasks.await
 
 /*
- * Classe intermediaria per ottenere la posizione dell'utente dai sensori dello smartphone e
- * inviarla così al Repository
+ * Classe intermediaria per ottenere la posizione dell'utente dai sensori dello smartphone tramite
+ * FusedLocationProviderClient (Play Services)
  */
 class LocationClientSensor(context: Context) {
+    // qui sotto al cofano, sfruttando questa API (FusedLocationProviderClient), viene fatta una
+    // chiamata alla HAL di Android per ottenere la posizione dell'utente
     private val fusedLocationClient = LocationServices.getFusedLocationProviderClient(context)
 
     @SuppressLint("MissingPermission")

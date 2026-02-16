@@ -18,23 +18,21 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.unibo.handy.ui.HomeVM
+import com.unibo.handy.ui.MatchUiState
 import com.unibo.handy.ui.components.LetterAvatar
 import com.unibo.handy.ui.theme.HandyPrimary
 
 // 1. Wrapper Stateful
 @Composable
-fun ProfileScreen(viewModel: HomeVM) {
-    val state by viewModel.uiState.collectAsState()
-    ProfileContent(username = state.username)
+fun ProfileScreen(state: MatchUiState) {
+    val username = state.currentUser?.username ?: "Utente Ospite"
+    ProfileContent(username = username)
 }
 
 // 2. Content Stateless

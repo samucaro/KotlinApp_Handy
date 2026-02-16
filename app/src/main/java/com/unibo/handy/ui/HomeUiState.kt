@@ -2,7 +2,9 @@ package com.unibo.handy.ui
 
 import com.unibo.handy.data.db.entity.MatchEntity
 
-// serve a impacchettare tutti i dati che la UI deve mostrare in un unico oggetto
+// serve a impacchettare tutti i dati che la UI deve mostrare in un unico oggetto rendendoli più
+// comprensibili per la View.
+// Sono sia dati provenienti dal db sia dati esclusivi della View
 data class HomeUiState(
     val userId: String = "",
     val username: String = "",

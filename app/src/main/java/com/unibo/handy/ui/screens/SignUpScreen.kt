@@ -21,10 +21,6 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -36,37 +32,14 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.unibo.handy.R
-import com.unibo.handy.ui.HomeVM
+import com.unibo.handy.ui.AuthUiState
 
-// Wrapper Stateful (Gestisce il ViewModel)
 @Composable
-fun SignUpScreen(viewModel: HomeVM, onSignUpSuccess: () -> Unit) {
-    var username by remember { mutableStateOf("") }
-    var email by remember { mutableStateOf("") }
-    var password by remember { mutableStateOf("") }
-
-    // Se c'è un errore, potremmo mostrarlo (es. snackbar), qui semplificato
-
-    SignUpContent(
-        username = username,
-        onUsernameChange = { username = it },
-        email = email,
-        onEmailChange = { email = it },
-        password = password,
-        onPasswordChange = { password = it },
-        onSignUpClick = {
-            viewModel.updateUserProfile(username, email, password, "Generico")
-            onSignUpSuccess()
-        }
-    )
-}
-
-// Content Stateless (Solo UI)
-@Composable
-fun SignUpContent(
-    username: String, onUsernameChange: (String) -> Unit,
-    email: String, onEmailChange: (String) -> Unit,
-    password: String, onPasswordChange: (String) -> Unit,
+fun SignUpScreen(
+    state: AuthUiState,
+    onUsernameChange: (String) -> Unit,
+    onEmailChange: (String) -> Unit,
+    onPasswordChange: (String) -> Unit,
     onSignUpClick: () -> Unit
 ) {
     Column(
@@ -92,26 +65,26 @@ fun SignUpContent(
 
         // Parte inferiore: Card bianca con i campi (70% dello schermo)
         Surface(
-            modifier = Modifier.Companion.fillMaxWidth().weight(0.7f),
+            modifier = Modifier.fillMaxWidth().weight(0.7f),
             shape = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp),
-            color = Color.Companion.White
+            color = Color.White
         ) {
             Column(
-                modifier = Modifier.Companion.padding(24.dp).verticalScroll(rememberScrollState()),
-                horizontalAlignment = Alignment.Companion.CenterHorizontally
+                modifier = Modifier.padding(24.dp).verticalScroll(rememberScrollState()),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
                     "Ti diamo il benvenuto",
                     style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.Companion.Bold
+                    fontWeight = FontWeight.Bold
                 )
-                Text("Inizia con il  tuo account", color = Color.Companion.Gray)
+                Text("Inizia con il  tuo account", color = Color.Gray)
 
                 Spacer(modifier = Modifier.height(24.dp))
 
                 // CAMPI DI INPUT
                 OutlinedTextField(
-                    value = username,
+                    value = state.username,
                     onValueChange = onUsernameChange,
                     label = { Text("Username") },
                     modifier = Modifier.fillMaxWidth()
@@ -120,7 +93,7 @@ fun SignUpContent(
                 Spacer(modifier = Modifier.height(12.dp))
 
                 OutlinedTextField(
-                    value = email,
+                    value = state.email,
                     onValueChange = onEmailChange,
                     label = { Text("Email") },
                     modifier = Modifier.fillMaxWidth()
@@ -129,7 +102,7 @@ fun SignUpContent(
                 Spacer(modifier = Modifier.height(12.dp))
 
                 OutlinedTextField(
-                    value = password,
+                    value = state.password,
                     onValueChange = onPasswordChange,
                     label = { Text("Password") },
                     visualTransformation = PasswordVisualTransformation(),
@@ -141,7 +114,7 @@ fun SignUpContent(
                 // BOTTONE DI REGISTRAZIONE
                 Button(
                     onClick = onSignUpClick,
-                    modifier = Modifier.Companion.fillMaxWidth().height(56.dp),
+                    modifier = Modifier.fillMaxWidth().height(56.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6F00)),
                     shape = androidx.compose.foundation.shape.RoundedCornerShape(28.dp)
                 ) {

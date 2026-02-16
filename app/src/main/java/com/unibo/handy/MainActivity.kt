@@ -34,6 +34,7 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    // La variabile savedInstanceState salva l'ultimo stato di un Activity dopo la sua distruzione
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()

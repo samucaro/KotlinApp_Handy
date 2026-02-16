@@ -18,7 +18,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -34,8 +33,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -43,29 +40,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.unibo.handy.data.db.entity.MatchEntity
-import com.unibo.handy.ui.components.EmptyStateMessage
-import com.unibo.handy.ui.HomeVM
 import com.unibo.handy.ui.theme.HandyPrimary
 import java.text.SimpleDateFormat
 import java.util.Locale
 
-// Wrapper Stateful
-@Composable
-fun ActivityScreen(viewModel: HomeVM, onChatClick: (String) -> Unit) {
-    // Osserviamo la
-    val pendingMatches by viewModel.pendingMatches.collectAsState()
-
-    ActivityContent(
-        pendingMatches = pendingMatches,
-        onAccept = { matchId -> viewModel.acceptMatch(matchId) },
-        onReject = { matchId -> viewModel.rejectMatch(matchId) }
-    )
-}
-
-// Content Stateless
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ActivityContent(
+fun ActivityScreen(
     pendingMatches: List<MatchEntity>,
     onAccept: (String) -> Unit,
     onReject: (String) -> Unit
@@ -142,21 +123,13 @@ fun PendingMatchItem(match: MatchEntity, onAccept: () -> Unit, onReject: () -> U
     }
 }
 
-// ---------------------------------------- CHAT SCREEN ----------------------------------------
-// Wrapper Stateful
-@Composable
-fun ChatScreen(
-    viewModel: HomeVM,
-    onChatClick: (String) -> Unit
-) {
-    val activeChats by viewModel.activeChats.collectAsState()
-    ChatContent(activeChats = activeChats, onChatClick = onChatClick)
-}
-
-// Content Stateless
+// --------------------------------------- CHAT LIST SCREEN ----------------------------------------
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ChatContent(activeChats: List<MatchEntity>, onChatClick: (String) -> Unit) {
+fun ChatListScreen(
+    activeChats: List<MatchEntity>,
+    onChatClick: (String) -> Unit
+) {
     Column(modifier = Modifier.fillMaxSize()) {
         TopAppBar(
             title = { Text("Messaggi", fontWeight = FontWeight.Bold) },

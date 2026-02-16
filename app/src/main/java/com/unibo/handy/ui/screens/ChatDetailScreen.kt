@@ -38,14 +38,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.unibo.handy.ui.HomeVM
 import com.unibo.handy.ui.components.MessageBubble
+import com.unibo.handy.ui.viewmodel.ChatViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SingleChatScreen(viewModel: HomeVM, matchId: String, onBack: () -> Unit) {
+fun SingleChatScreen(viewModel: ChatViewModel, matchId: String, onBack: () -> Unit) {
     // Recupera i messaggi specifici per questo matchId
-    val messages by viewModel.getChatMessages(matchId).collectAsState(initial = emptyList())
+    val messages by viewModel.messages.collectAsState()
     var inputText by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
 

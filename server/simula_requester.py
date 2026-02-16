@@ -57,7 +57,7 @@ def main():
     beta_plus_y = mod_add(pY, noise)
     
     # Tolleranza 500 metri (in fixed point o metri a seconda del server)
-    # Nel tuo codice Kotlin passi tol.toDouble(), qui mandiamo 500
+    # Nel tuo codice Kotlin passi tol.toDouble(), qui mandiamo 5000
     tolerance = 5000
 
     print(f"Posizione Requester: {REQUESTER_LAT}, {REQUESTER_LON}")

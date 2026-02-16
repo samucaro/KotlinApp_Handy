@@ -22,8 +22,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -31,8 +29,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.unibo.handy.ui.components.CategoryChip
-import com.unibo.handy.ui.HomeUiState
-import com.unibo.handy.ui.HomeVM
+import com.unibo.handy.ui.MatchUiState
 import com.unibo.handy.ui.components.ModeSwitchCard
 import com.unibo.handy.ui.components.RadarAnimation
 import com.unibo.handy.ui.theme.HandyPrimary
@@ -40,22 +37,27 @@ import com.unibo.handy.ui.theme.HandySecondary
 
 // Wrapper Stateful
 @Composable
-fun HomeScreen(viewModel: HomeVM) {
-    val state by viewModel.uiState.collectAsState()
-
+fun HomeScreen(
+    state: MatchUiState,
+    onToggleHelper: (Boolean) -> Unit,
+    onRequestHelp: (String, Double) -> Unit,
+    onDismissPopup: () -> Unit,
+    onAcceptMatch: (String) -> Unit,
+    onSearchParamUpdate: (String, Float) -> Unit = { _, _ -> }
+) {
     HomeContent(
         state = state,
-        onToggleHelperMode = { viewModel.toggleHelperMode(it) },
-        onDismissMatchPopup = { viewModel.dismissMatchPopup() },
-        onSearchParamUpdate = { cat, radius -> viewModel.updateSearchParameters(cat, radius) },
-        onSendHelpRequest = { viewModel.sendHelpRequest() },
-        onAcceptMatch = { matchId -> viewModel.acceptMatch(matchId) }
+        onToggleHelperMode = onToggleHelper,
+        onDismissMatchPopup = onDismissPopup,
+        onSearchParamUpdate = onSearchParamUpdate,
+        onSendHelpRequest = { onRequestHelp(state.selectedCategory, state.toleranceRadius.toDouble()) },
+        onAcceptMatch = onAcceptMatch
     )
 }
 // Content Stateless (Solo UI)
 @Composable
 fun HomeContent(
-    state: HomeUiState,
+    state: MatchUiState,
     onToggleHelperMode: (Boolean) -> Unit,
     onDismissMatchPopup: () -> Unit,
     onSearchParamUpdate: (String, Float) -> Unit,
@@ -78,13 +80,16 @@ fun HomeContent(
                 Text("Bologna, Italia (Simulato)", fontWeight = FontWeight.Bold)
             }
             Spacer(modifier = Modifier.weight(1f))
+
+            val userIdDisplay = state.currentUser?.userId?.take(8) ?: "Anonimo"
+
             // Indicatore ID Utente (Troncato)
             Surface(
                 color = HandyPrimary.copy(alpha = 0.1f),
                 shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp)
             ) {
                 Text(
-                    text = "ID: ${state.userId.take(8)}...",
+                    text = "ID: $userIdDisplay...",
                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
                     fontSize = 12.sp,
                     color = HandyPrimary
@@ -113,7 +118,7 @@ fun HomeContent(
         Text(state.statusMessage, fontSize = 12.sp, color = Color.Gray)
 
         // POPUP MATCH TROVATO
-        if (state.showMatchSuccess) {
+        if (state.showMatchPopup) {
             AlertDialog(
                 onDismissRequest = onDismissMatchPopup,
                 title = {
@@ -134,7 +139,7 @@ fun HomeContent(
                 confirmButton = {
                     Button(
                         onClick = {
-                            onAcceptMatch(state.currentMatchId)
+                            state.incomingMatchId?.let { onAcceptMatch(it) }
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = HandySecondary)
                     ) {
@@ -179,7 +184,7 @@ fun HelperView() {
 
 @Composable
 fun RequesterView(
-    state: HomeUiState,
+    state: MatchUiState,
     onCategorySelect: (String) -> Unit,
     onRadiusChange: (Float) -> Unit,
     onSearchClick: () -> Unit

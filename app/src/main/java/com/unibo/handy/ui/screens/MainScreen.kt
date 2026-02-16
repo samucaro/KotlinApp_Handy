@@ -23,13 +23,22 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import com.unibo.handy.ui.HomeVM
+import com.unibo.handy.data.db.entity.MatchEntity
+import com.unibo.handy.ui.MatchUiState
 import com.unibo.handy.ui.components.NavBarItem
 
 @Composable
 fun MainScreen(
-    viewModel: HomeVM,
-    onOpenChat: (String) -> Unit
+    state: MatchUiState,
+    pendingMatches: List<MatchEntity>,
+    activeChats: List<MatchEntity>,
+    onToggleHelper: (Boolean) -> Unit,
+    onRequestHelp: (String, Double) -> Unit,
+    onOpenChat: (String) -> Unit,
+    onDismissPopup: () -> Unit,
+    onAcceptMatch: (String) -> Unit,
+    onRejectMatch: (String) -> Unit,
+    onSearchParamUpdate: (String, Float) -> Unit
 ) {
     var selectedTab by remember { mutableIntStateOf(0) }
 
@@ -58,14 +67,9 @@ fun MainScreen(
         bottomBar = {
             NavigationBar(containerColor = Color.White) {
                 NavBarItem(0, "Home", Icons.Default.Home, selectedTab) { selectedTab = 0 }
-                NavBarItem(
-                    1,
-                    "Attività",
-                    Icons.AutoMirrored.Filled.List,
-                    selectedTab
-                ) { selectedTab = 1 }
+                NavBarItem(1, "Attività", Icons.AutoMirrored.Filled.List, selectedTab) { selectedTab = 1 }
                 NavBarItem(2, "Chat", Icons.Default.Sms, selectedTab) { selectedTab = 2 }
-                NavBarItem(3, "Profilo", Icons.Default.Person, selectedTab) { selectedTab = 3 }
+                NavBarItem(3, "Profilo", Icons.Default.Person, selectedTab) {}
             }
         }
     ) { innerPadding ->
@@ -75,10 +79,24 @@ fun MainScreen(
                 .background(Color(0xFFF5F7F8))
         ) {
             when (selectedTab) {
-                0 -> HomeScreen(viewModel)
-                1 -> ActivityScreen(viewModel = viewModel, onChatClick = onOpenChat)
-                2 -> ChatScreen(viewModel = viewModel, onChatClick = onOpenChat)
-                3 -> ProfileScreen(viewModel)
+                0 -> HomeScreen(
+                    state = state,
+                    onToggleHelper = onToggleHelper,
+                    onRequestHelp = onRequestHelp,
+                    onDismissPopup = onDismissPopup,
+                    onAcceptMatch = onAcceptMatch,
+                    onSearchParamUpdate = onSearchParamUpdate
+                )
+                1 -> ActivityScreen(
+                    pendingMatches = pendingMatches,
+                    onAccept = onAcceptMatch,
+                    onReject = onRejectMatch
+                )
+                2 -> ChatListScreen(
+                    activeChats = activeChats,
+                    onChatClick = onOpenChat
+                )
+                3 -> ProfileScreen(state = state)
             }
         }
     }

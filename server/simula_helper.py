@@ -26,7 +26,7 @@ def mod_sub(a, b):
 def main():
     print(f"--- AVVIO SIMULATORE HELPER ---")
     
-    client_id = str(uuid.uuid4())
+    client_id = "5ce95ea5-6ce0-44a5-a627-9574fee1ceb5"#str(uuid.uuid4())
     category = "Idraulico" # Deve combaciare con la ricerca Android
     print(f"Helper ID: {client_id} [{category}]")
 

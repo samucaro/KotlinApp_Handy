@@ -1,5 +1,6 @@
 package com.unibo.handy.data.repository
 
+import android.util.Log
 import com.google.gson.Gson
 import com.unibo.handy.data.db.dao.ChatDAO
 import com.unibo.handy.data.db.dao.MatchDAO
@@ -22,17 +23,22 @@ class ChatRepository(
      * Trasforma la richiesta in una chat attiva.
      */
     suspend fun acceptMatch(requesterId: String) {
+        Log.i("ChatRepo", "Accepting match for: $requesterId")
+
+        // Aggiorna lo stato della richiesta
         matchDao.updateStatus(requesterId, MatchStatus.ACCEPTED)
 
+        // Invia notifica via WebSocket al requester
         val payload = mapOf(
-            "type" to "MATCH_ACCEPTED",
+            "type" to "CHAT_MESSAGE",
             "payload" to mapOf(
                 "target_id" to requesterId,
-                "message" to "L'helper ha accettato la tua richiesta!"
+                "message" to "SYSTEM: Richiesta Accettata! Ora potete chattare."
             )
         )
         webSocketManager.sendMessage(gson.toJson(payload))
 
+        // 3. Crea messaggio di sistema locale
         saveIncomingMessage(requesterId, "Hai accettato la richiesta. Inizia a chattare!")
     }
 
@@ -47,7 +53,7 @@ class ChatRepository(
     suspend fun sendMessage(recipientId: String, content: String) {
         val currentUser = userDao.getUserSnapshot() ?: return
 
-        // A. Salva nel DB Locale
+        // A. Salva nel DB Locale (messaggio inviato da l'utente)
         val msgEntity = ChatMessagesEntity(
             chatId = recipientId,
             senderId = currentUser.userId,
@@ -64,10 +70,14 @@ class ChatRepository(
                 "message" to content
             )
         )
-        webSocketManager.sendMessage(gson.toJson(payload))
+        val sent = webSocketManager.sendMessage(gson.toJson(payload))
+        if (!sent) {
+            Log.w("ChatRepo", "Message not sent")
+            // aggiornare lo stato del messaggio a "NON INVIATO" nel DB nel caso
+        }
     }
 
-    // 3. Salva messaggio ricevuto
+    // Salva messaggio ricevuto
     suspend fun saveIncomingMessage(senderId: String, content: String) {
         val entity = ChatMessagesEntity(
             chatId = senderId,
@@ -76,5 +86,6 @@ class ChatRepository(
             timestamp = System.currentTimeMillis()
         )
         chatDao.insertMessage(entity)
+        Log.v("ChatRepo", "Incoming message saved from: $senderId")
     }
 }

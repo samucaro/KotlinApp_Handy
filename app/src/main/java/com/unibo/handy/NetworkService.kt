@@ -1,13 +1,14 @@
 package com.unibo.handy
 
-import android.app.Notification
 import android.app.Service
 import android.content.Intent
 import android.content.pm.ServiceInfo
-import android.os.Build
 import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import com.unibo.handy.data.network.MessageDispatcher
+import com.unibo.handy.data.network.WebSocketManager
+import com.unibo.handy.data.repository.LocationRepository
 import com.unibo.handy.data.repository.UserRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -19,25 +20,37 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
+// Funge da pattern FACADE
 class NetworkService : Service() {
-    private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     // Serve a verificare se il servizio è già in esecuzione e impedire di creare duplicati
     private var backgroundJob: Job? = null
-    private lateinit var repository: UserRepository
+
+    // Dipendenze
+    private lateinit var userRepo: UserRepository
+    private lateinit var locationRepo: LocationRepository
+    private lateinit var dispatcher: MessageDispatcher
+    private lateinit var webSocketManager: WebSocketManager
 
     override fun onCreate() {
         super.onCreate()
-        val app = applicationContext as HandyApp //cast
-        repository = app.userRepository
+        val app = applicationContext as HandyApp
+
+        // INIEZIONE DIPENDENZE
+        userRepo = app.userRepository
+        locationRepo = app.locationRepository
+        dispatcher = app.realtimeDispatcher
+        webSocketManager = app.webSocketManager
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        Log.i("HandyService", "Service Started/Resumed")
+        Log.i("HandyService", "Service Started")
 
+        // Configurazione notifica Foreground
         val notification = NotificationCompat.Builder(this, HandyApp.CHANNEL_ID)
-            .setContentTitle("Handy Attivo")
+            .setContentTitle("Handy Background")
             .setContentText("Ricerca in corso...")
-            .setSmallIcon(android.R.drawable.ic_menu_mylocation)
+            .setSmallIcon(android.R.drawable.ic_dialog_map)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .build()
 
@@ -45,77 +58,68 @@ class NetworkService : Service() {
             startForeground(
                 1,
                 notification,
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC // o FOREGROUND_SERVICE_TYPE_LOCATION
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
             )
         } catch (e: Exception) {
-            Log.e("HandyService", "CRASH startForeground: ${e.message}")
+            Log.e("HandyService", "Foreground start error: ${e.message}")
             stopSelf()
         }
 
-        // 2. Avvia la logica (Pattern "Idempotente": se è già attivo, resetta o ignora)
         startBackgroundLogic()
-
         return START_STICKY
     }
 
     private fun startBackgroundLogic() {
+        // Cancella eventuali job precedenti per evitare duplicati
         backgroundJob?.cancel()
 
-        backgroundJob = serviceScope.launch {
-            repository.currentUserFlow.collectLatest { user ->
+        backgroundJob = scope.launch {
+            // Osserva l'utente corrente
+            userRepo.currentUserFlow.collectLatest { user ->
+
+                // CASO LOGOUT
                 if (user == null) {
-                    Log.d("HandyService", "Nessun utente loggato. Metto in pausa.")
+                    Log.d("HandyService", "Logout: Stop dispatcher and colse socket")
+                    dispatcher.stopDispatching()
+                    webSocketManager.close()
                     return@collectLatest
                 }
 
-                Log.d("HandyService", "Utente attivo: ${user.userId}. Avvio loop.")
+                Log.d("HandyService", "User active: ${user.userId}. Start services.")
 
-                // Connessione WebSocket
+                // 1. Connessione WebSocket (Stateful)
                 launch {
                     try {
-                        repository.ensureWebSocketConnection()
+                        webSocketManager.connect(user.userId)
                     } catch (e: Exception) {
-                        Log.e("HandyService", "Errore WS", e)
+                        Log.e("HandyService", "WebSocket connection error", e)
                     }
                 }
 
-                // LOOP HEARTBEAT
-                // Invia la posizione criptata ogni 30 secondi se l'utente è un Helper
-                launch {
-                    while (isActive) {
-                        if (user.helpModeActive) {
-                            Log.v("HandyService", "Invio Heartbeat periodico...")
-                            repository.sendHeartbeat()
+                // 2. Avvio dispatcher
+                dispatcher.startDispatching()
+
+
+                // 3. LOOP HEARTBEAT (Stateless - Solo se helper Mode)
+                if(user.helpModeActive) {
+                    Log.d("HandyService", "Helper mode: Start heartbeat")
+                    // Lancia una coroutine figlia che vive finché `collectLatest` non ricomincia
+                    launch {
+                        while (isActive) {
+                            locationRepo.sendHeartbeat()
+                            delay(30_000)
                         }
-                        delay(30_000)
                     }
                 }
             }
         }
     }
 
-    /*private fun createNotification(): Notification {
-        return NotificationCompat.Builder(this, "HANDY_CHANNEL")
-            .setContentTitle("Handy attivo")
-            .setContentText("Ricerca match e connessione attivi in background")
-            .setSmallIcon(android.R.drawable.ic_dialog_info)
-            .setOngoing(true)
-            .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
-            .build()
-    }
-    private fun createNotificationChannel() {
-        val channel = NotificationChannel(
-            "HANDY_CHANNEL",
-            "Background Service",
-            NotificationManager.IMPORTANCE_LOW
-        )
-        val manager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
-        manager.createNotificationChannel(channel)
-    }*/
-
     override fun onDestroy() {
         Log.w("HandyService", "Service Destroyed")
-        serviceScope.cancel()
+        dispatcher.stopDispatching()
+        scope.cancel()
+        webSocketManager.close()
         super.onDestroy()
     }
 
