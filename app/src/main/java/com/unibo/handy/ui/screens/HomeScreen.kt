@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.LocationOn
@@ -28,6 +29,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.unibo.handy.data.db.entity.UserEntity
 import com.unibo.handy.ui.components.CategoryChip
 import com.unibo.handy.ui.MatchUiState
 import com.unibo.handy.ui.components.ModeSwitchCard
@@ -38,29 +40,47 @@ import com.unibo.handy.ui.theme.HandySecondary
 // Wrapper Stateful
 @Composable
 fun HomeScreen(
-    state: MatchUiState,
+    currentUser: UserEntity?,
+    isHelperMode: Boolean,
+    matchState: MatchUiState,
+    selectedCategory: String,
+    searchRadius: Float,
     onToggleHelper: (Boolean) -> Unit,
     onRequestHelp: (String, Double) -> Unit,
     onDismissPopup: () -> Unit,
     onAcceptMatch: (String) -> Unit,
-    onSearchParamUpdate: (String, Float) -> Unit = { _, _ -> }
+    onSearchParamUpdate: (String, Float) -> Unit
 ) {
     HomeContent(
-        state = state,
+        currentUser = currentUser,
+        isHelperMode = isHelperMode,
+        matchState = matchState,
+        selectedCategory = selectedCategory,
+        searchRadius = searchRadius,
         onToggleHelperMode = onToggleHelper,
         onDismissMatchPopup = onDismissPopup,
-        onSearchParamUpdate = onSearchParamUpdate,
-        onSendHelpRequest = { onRequestHelp(state.selectedCategory, state.toleranceRadius.toDouble()) },
+        onCategoryChange = { newCat ->
+            onSearchParamUpdate(newCat, searchRadius)
+        },
+        onRadiusChange = { newRad ->
+            onSearchParamUpdate(selectedCategory, newRad)
+        },
+        onSendHelpRequest = { onRequestHelp(selectedCategory, searchRadius.toDouble()) },
         onAcceptMatch = onAcceptMatch
     )
 }
 // Content Stateless (Solo UI)
 @Composable
 fun HomeContent(
-    state: MatchUiState,
+    currentUser: UserEntity?,
+    isHelperMode: Boolean,
+    matchState: MatchUiState,
+    selectedCategory: String,
+    searchRadius: Float,
     onToggleHelperMode: (Boolean) -> Unit,
     onDismissMatchPopup: () -> Unit,
-    onSearchParamUpdate: (String, Float) -> Unit,
+    onCategoryChange: (String) -> Unit,
+    onRadiusChange: (Float) -> Unit,
     onSendHelpRequest: () -> Unit,
     onAcceptMatch: (String) -> Unit
 ) {
@@ -81,12 +101,12 @@ fun HomeContent(
             }
             Spacer(modifier = Modifier.weight(1f))
 
-            val userIdDisplay = state.currentUser?.userId?.take(8) ?: "Anonimo"
+            val userIdDisplay = currentUser?.userId?.take(8) ?: "Anonimo"
 
             // Indicatore ID Utente (Troncato)
             Surface(
                 color = HandyPrimary.copy(alpha = 0.1f),
-                shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp)
+                shape = RoundedCornerShape(16.dp)
             ) {
                 Text(
                     text = "ID: $userIdDisplay...",
@@ -98,27 +118,28 @@ fun HomeContent(
         }
 
         // Switch Principale (Modalità)
-        ModeSwitchCard(state.isHelperMode, onToggleHelperMode)
+        ModeSwitchCard(isHelperMode, onToggleHelperMode)
 
         Spacer(modifier = Modifier.height(24.dp))
 
 
-        if (state.isHelperMode) {
+        if (isHelperMode) {
             HelperView()
         } else {
             RequesterView(
-                state = state,
-                onCategorySelect = { cat -> onSearchParamUpdate(cat, state.toleranceRadius) },
-                onRadiusChange = { rad -> onSearchParamUpdate(state.selectedCategory, rad) },
+                selectedCategory = selectedCategory,
+                searchRadius = searchRadius,
+                onCategorySelect = onCategoryChange,
+                onRadiusChange = onRadiusChange,
                 onSearchClick = onSendHelpRequest
             )
         }
 
         Spacer(modifier = Modifier.weight(1f))
-        Text(state.statusMessage, fontSize = 12.sp, color = Color.Gray)
+        Text(matchState.statusMessage, fontSize = 12.sp, color = Color.Gray)
 
         // POPUP MATCH TROVATO
-        if (state.showMatchPopup) {
+        if (matchState.showMatchPopup) {
             AlertDialog(
                 onDismissRequest = onDismissMatchPopup,
                 title = {
@@ -132,14 +153,14 @@ fun HomeContent(
                     Column {
                         Text("Un Utente sta cercando aiuto vicino a te")
                         Spacer(modifier = Modifier.height(8.dp))
-                        Text(text = state.statusMessage)
+                        Text(text = matchState.statusMessage)
                     }
                 },
 
                 confirmButton = {
                     Button(
                         onClick = {
-                            state.incomingMatchId?.let { onAcceptMatch(it) }
+                            matchState.incomingMatchId?.let { onAcceptMatch(it) }
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = HandySecondary)
                     ) {
@@ -184,7 +205,8 @@ fun HelperView() {
 
 @Composable
 fun RequesterView(
-    state: MatchUiState,
+    selectedCategory: String,
+    searchRadius: Float,
     onCategorySelect: (String) -> Unit,
     onRadiusChange: (Float) -> Unit,
     onSearchClick: () -> Unit
@@ -200,26 +222,26 @@ fun RequesterView(
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             CategoryChip(
                 "Idraulico",
-                state.selectedCategory == "Idraulico"
+                selectedCategory == "Idraulico"
             ) { onCategorySelect("Idraulico") }
             CategoryChip(
                 "Elettricista",
-                state.selectedCategory == "Elettricista"
+                selectedCategory == "Elettricista"
             ) { onCategorySelect("Elettricista") }
             CategoryChip(
                 "Medico",
-                state.selectedCategory == "Medico"
+                selectedCategory == "Medico"
             ) { onCategorySelect("Medico") }
         }
 
         Spacer(modifier = Modifier.height(24.dp))
 
         Text(
-            "Raggio di ricerca: ${state.toleranceRadius.toInt()} km",
+            "Raggio di ricerca: ${searchRadius.toInt()} km",
             fontWeight = FontWeight.Bold
         )
         Slider(
-            value = state.toleranceRadius,
+            value = searchRadius,
             onValueChange = onRadiusChange,
             valueRange = 1f..50f,
         )

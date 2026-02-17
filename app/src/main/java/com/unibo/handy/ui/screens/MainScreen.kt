@@ -25,11 +25,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import com.unibo.handy.data.db.entity.MatchEntity
 import com.unibo.handy.ui.MatchUiState
+import com.unibo.handy.ui.UserUiState
 import com.unibo.handy.ui.components.NavBarItem
 
 @Composable
 fun MainScreen(
-    state: MatchUiState,
+    // Dati dallo UserViewModel
+    userState: UserUiState,
+    // Dati dal MatchViewModel
+    matchState: MatchUiState,
     pendingMatches: List<MatchEntity>,
     activeChats: List<MatchEntity>,
     onToggleHelper: (Boolean) -> Unit,
@@ -80,7 +84,11 @@ fun MainScreen(
         ) {
             when (selectedTab) {
                 0 -> HomeScreen(
-                    state = state,
+                    currentUser = userState.currentUser,
+                    isHelperMode = userState.isHelperMode,
+                    matchState = matchState,
+                    selectedCategory = userState.selectedCategory,
+                    searchRadius = userState.searchRadius,
                     onToggleHelper = onToggleHelper,
                     onRequestHelp = onRequestHelp,
                     onDismissPopup = onDismissPopup,
@@ -96,7 +104,7 @@ fun MainScreen(
                     activeChats = activeChats,
                     onChatClick = onOpenChat
                 )
-                3 -> ProfileScreen(state = state)
+                3 -> ProfileScreen(currentUser = userState.currentUser)
             }
         }
     }

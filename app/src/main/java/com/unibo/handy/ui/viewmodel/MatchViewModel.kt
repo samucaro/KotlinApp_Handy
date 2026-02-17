@@ -9,7 +9,6 @@ import com.unibo.handy.HandyApp
 import com.unibo.handy.data.db.dao.MatchDAO
 import com.unibo.handy.data.repository.ChatRepository
 import com.unibo.handy.data.repository.MatchingRepository
-import com.unibo.handy.data.repository.UserRepository
 import com.unibo.handy.ui.MatchUiState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -21,7 +20,6 @@ import kotlinx.coroutines.launch
 
 class MatchViewModel(
     private val matchingRepository: MatchingRepository,
-    private val userRepository: UserRepository,
     private val chatRepository: ChatRepository,
     matchDao: MatchDAO
 ) : ViewModel() {
@@ -37,19 +35,7 @@ class MatchViewModel(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     init {
-        // 1. Osserva lo stato Helper/User
-        viewModelScope.launch {
-            userRepository.currentUserFlow.collectLatest { user ->
-                _uiState.update {
-                    it.copy(
-                        currentUser = user,
-                        isHelperMode = user?.helpModeActive ?: false
-                    )
-                }
-            }
-        }
-
-        // 2. Osserva eventi di Match (WebSocket -> Repo -> VM)
+        // Osserva eventi di Match (WebSocket -> Repo -> VM)
         viewModelScope.launch {
             matchingRepository.matchEvents.collectLatest { requesterId ->
                 _uiState.update {
@@ -64,36 +50,6 @@ class MatchViewModel(
     }
 
     // --- AZIONI ---
-    fun toggleHelperMode(isActive: Boolean) {
-        viewModelScope.launch { userRepository.setHelperMode(isActive) }
-    }
-
-    fun updateSearchParameters(category: String, radius: Float) {
-        _uiState.update {
-            it.copy(selectedCategory = category, toleranceRadius = radius)
-        }
-    }
-
-    fun sendHelpRequest(category: String, radius: Double) {
-        viewModelScope.launch {
-            val state = _uiState.value
-            val userId = state.currentUser?.userId ?: return@launch
-
-            _uiState.update { it.copy(statusMessage = "Invio richiesta in corso...") }
-
-            try {
-                matchingRepository.sendHelpRequest(
-                    userId = userId,
-                    category = category,
-                    tolerance = radius
-                )
-                _uiState.update { it.copy(statusMessage = "Richiesta Inviata! Attendi...") }
-            } catch (e: Exception) {
-                _uiState.update { it.copy(statusMessage = "Errore: ${e.message}") }
-            }
-        }
-    }
-
     fun acceptMatch(matchId: String) {
         viewModelScope.launch {
             chatRepository.acceptMatch(matchId)
@@ -119,7 +75,6 @@ class MatchViewModel(
                 val app = (this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY] as HandyApp)
                 MatchViewModel(
                     app.matchingRepository,
-                    app.userRepository,
                     app.chatRepository,
                     app.db.matchDao()
                 )

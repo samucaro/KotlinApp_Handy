@@ -23,7 +23,6 @@ class AuthViewModel(
     fun onEmailChange(newValue: String) { _uiState.update { it.copy(email = newValue) } }
     fun onPasswordChange(newValue: String) { _uiState.update { it.copy(password = newValue) } }
 
-
     fun signUp() {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, error = null) }

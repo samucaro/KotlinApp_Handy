@@ -44,17 +44,16 @@ class HandyApp : Application() {
     val userRepository by lazy {
         UserRepository(
             userDao = db.userDao(),
-            apiService = RetrofitClient.retrofitService
+            apiService = RetrofitClient.retrofitService,
+            locationRepo = locationRepository
         )
     }
 
     val matchingRepository by lazy{
         MatchingRepository(
-            apiService = RetrofitClient.retrofitService,
             webSocketManager = webSocketManager,
             matchDao = db.matchDao(),
             storedClientDao = db.storedClientDao(),
-            locationRepo = locationRepository,
             matchingService = matchingService
         )
     }

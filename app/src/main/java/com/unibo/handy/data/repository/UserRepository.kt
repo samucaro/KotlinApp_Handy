@@ -4,7 +4,9 @@ import android.util.Log
 import com.unibo.handy.data.db.dao.UserDAO
 import com.unibo.handy.data.db.entity.UserEntity
 import com.unibo.handy.data.network.ServiceAPI
+import com.unibo.handy.data.network.dto.HelpRequestDTO
 import com.unibo.handy.data.network.dto.RegistrationDTO
+import com.unibo.handy.domain.PrivacyEngine
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withContext
@@ -22,6 +24,8 @@ class UserRepository(
     private val userDao: UserDAO,
     // Dati di rete
     private val apiService: ServiceAPI,
+    // Gestore di posizione
+    private val locationRepo: LocationRepository
 ) {
     // Il Flow permette la reattività istantane a modifiche nel DB locale
     val currentUserFlow: Flow<UserEntity?> = userDao.getUserFlow()
@@ -88,6 +92,53 @@ class UserRepository(
             }
         } catch (e: Exception) {
             Log.e("UserRepository", "Registration error", e)
+        }
+    }
+
+    /**
+     * FASE 3: HELP-REQUEST (Fig. 5b paper)
+     * Metodo di invio richiesta di aiuto usa il canale Retrofit REST
+     */
+    suspend fun sendHelpRequest(userId: String, category: String,  tolerance: Double) {
+        // 1. RECUPERO POSIZIONE
+        val location = locationRepo.getCurrentLocation()
+        if (location == null) {
+            Log.e("MatchingRepo", "HelpRequest skipped: GPS null.")
+            return
+        }
+
+        Log.i("MatchingRepo", "HelpRequest sent for Category: $category, Tol: $tolerance")
+
+        // 2. BLURRING
+        val blurredData = PrivacyEngine.createHelpRequest(
+            lat = location.latitude,
+            lon = location.longitude,
+            tol = tolerance
+        )
+
+        try {
+            // 3. CREAZIONE DTO
+            val dto = HelpRequestDTO(
+                clientId = userId,
+                category = category,
+                blurredX = blurredData.betaPlusX,
+                blurredY = blurredData.betaPlusY,
+                encryptedR = blurredData.encryptedR, //Da cifrare con Paillier
+                encryptedTol = blurredData.encryptedTol //Da cifrare con Paillier
+            )
+
+            // 4. INVIO AL SERVER
+            // Il server riceverà questo DTO e lo inoltrerà ai Service Clients
+            // che custodiscono gli helper per fare il matching.
+            val response = apiService.sendHelpRequest(dto)
+
+            if (response.isSuccessful) {
+                Log.i("MatchingRepo", "HelpRequest success (200 OK). Request recieve by server")
+            } else {
+                Log.e("MatchingRepo", "HelpRequest server error: ${response.code()}")
+            }
+        } catch (e: Exception) {
+            Log.e("MatchingRepo", "HelpRequest network error", e)
         }
     }
 

@@ -24,14 +24,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.unibo.handy.ui.MatchUiState
+import com.unibo.handy.data.db.entity.UserEntity
 import com.unibo.handy.ui.components.LetterAvatar
 import com.unibo.handy.ui.theme.HandyPrimary
 
 // 1. Wrapper Stateful
 @Composable
-fun ProfileScreen(state: MatchUiState) {
-    val username = state.currentUser?.username ?: "Utente Ospite"
+fun ProfileScreen(currentUser: UserEntity?) {
+    val username = currentUser?.username ?: "Anonimo"
     ProfileContent(username = username)
 }
 

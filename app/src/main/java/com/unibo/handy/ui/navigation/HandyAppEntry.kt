@@ -21,6 +21,7 @@ import com.unibo.handy.ui.screens.SingleChatScreen
 import com.unibo.handy.ui.viewmodel.AuthViewModel
 import com.unibo.handy.ui.viewmodel.ChatViewModel
 import com.unibo.handy.ui.viewmodel.MatchViewModel
+import com.unibo.handy.ui.viewmodel.UserViewModel
 
 // Indirizzi delle rotte (schermate) con Jetpack Navigation
 sealed class Screen(val route: String) {
@@ -94,17 +95,19 @@ fun HandyAppEntry() {
 
         // ROTTA 2: DASHBOARD
         composable(Screen.Home.route) {
-            // Inietto MapViewModel
+            // Inietto ViewModel
+            val userVM: UserViewModel = viewModel(factory = UserViewModel.Factory)
+            val userState by userVM.uiState.collectAsState()
             val matchVM: MatchViewModel = viewModel(factory = MatchViewModel.Factory)
-            val state by matchVM.uiState.collectAsState()
+            val matchState by matchVM.uiState.collectAsState()
             val pendingMatches by matchVM.pendingMatches.collectAsState()
             val activeChats by matchVM.activeChats.collectAsState()
 
             val context = LocalContext.current // Serve per accedere al sistema di vibrazione
 
             // Gestisce l'apertura della chat se clicco sul popup del match
-            LaunchedEffect(state.incomingMatchId) {
-                if(state.showMatchPopup && state.incomingMatchId != null) {
+            LaunchedEffect(matchState.incomingMatchId) {
+                if(matchState.showMatchPopup && matchState.incomingMatchId != null) {
                     // Vibrazione
                     val vibratorManager =
                         context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager
@@ -115,16 +118,17 @@ fun HandyAppEntry() {
                             VibrationEffect.DEFAULT_AMPLITUDE
                         )
                     )
-                    Log.d("HandyNav", "Popup mostrato per match: ${state.incomingMatchId}")
+                    Log.d("HandyNav", "Popup mostrato per match: ${matchState.incomingMatchId}")
                 }
             }
 
             MainScreen(
-                state = state,
+                userState = userState,
+                matchState = matchState,
                 pendingMatches = pendingMatches,
                 activeChats = activeChats,
-                onToggleHelper = matchVM::toggleHelperMode,
-                onRequestHelp = { cat, rad -> matchVM.sendHelpRequest(cat, rad) },
+                onToggleHelper = userVM::toggleHelperMode,
+                onRequestHelp = { cat, rad -> userVM.sendHelpRequest(cat, rad) },
                 onOpenChat = { matchId ->
                     navController.navigate(Screen.ChatDetail.createRoute(matchId))
                 },
@@ -137,15 +141,8 @@ fun HandyAppEntry() {
                     navController.navigate(Screen.ChatDetail.createRoute(matchId))
                 },
                 onRejectMatch = matchVM::rejectMatch,
-                onSearchParamUpdate = matchVM::updateSearchParameters
+                onSearchParamUpdate = userVM::updateSearchParameters
             )
-            /*MainScreen(
-                viewModel = viewModel,
-                onOpenChat = { matchId ->
-                    // Quando clicco su una chat, navigo al dettaglio
-                    navController.navigate(Screen.ChatDetail.createRoute(matchId))
-                }
-            )*/
         }
 
         // ROTTA 3: DETTAGLIO CHAT
