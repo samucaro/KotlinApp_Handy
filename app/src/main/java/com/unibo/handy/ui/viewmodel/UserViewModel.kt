@@ -27,7 +27,8 @@ class UserViewModel(
                 _uiState.update {
                     it.copy(
                         currentUser = user,
-                        isHelperMode = user?.helpModeActive ?: false
+                        isHelperMode = user?.helpModeActive ?: false,
+                        isInitialDataLoaded = true
                     )
                 }
             }
@@ -35,11 +36,10 @@ class UserViewModel(
     }
 
     // --- AZIONI ATTIVE DELL'UTENTE ---
-
-    fun toggleHelperMode(isActive: Boolean) {
+    fun toggleHelperMode(isActive: Boolean, category: String = "Generico") {
         viewModelScope.launch {
             try {
-                userRepository.setHelperMode(isActive)
+                userRepository.setHelperMode(isActive, category)
             } catch (e: Exception) {
                 _uiState.update { it.copy(statusMessage = "Errore cambio modalità: ${e.message}") }
             }
@@ -72,6 +72,11 @@ class UserViewModel(
                 searchRadius = radius
             )
         }
+    }
+
+    // Per configurazione iniziale helper mode
+    fun updateHelperDraft(category: String) {
+        _uiState.update { it.copy(helperCategoryDraft = category) }
     }
 
     fun logout() {

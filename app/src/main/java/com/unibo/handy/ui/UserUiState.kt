@@ -11,5 +11,7 @@ data class UserUiState(
     val statusMessage: String = "",
     val isLoading: Boolean = false,
     val selectedCategory: String = "Idraulico",
-    val searchRadius: Float = 10f
+    val searchRadius: Float = 10f,
+    val helperCategoryDraft: String = "Idraulico", // per configurazione iniziale helper mode
+    val isInitialDataLoaded: Boolean = false
 )

@@ -116,7 +116,7 @@ fun SignUpScreen(
                     onClick = onSignUpClick,
                     modifier = Modifier.fillMaxWidth().height(56.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6F00)),
-                    shape = androidx.compose.foundation.shape.RoundedCornerShape(28.dp)
+                    shape = RoundedCornerShape(28.dp)
                 ) {
                     Text("Registrati", fontSize = 18.sp)
                 }

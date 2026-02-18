@@ -11,6 +11,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.platform.LocalContext
+import com.unibo.handy.ui.viewmodel.AuthState.LOGGED_IN
+import com.unibo.handy.ui.viewmodel.AuthState.NOT_LOGGED
+import com.unibo.handy.ui.viewmodel.AuthState.LOADING
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -18,6 +21,7 @@ import androidx.navigation.compose.rememberNavController
 import com.unibo.handy.ui.screens.MainScreen
 import com.unibo.handy.ui.screens.SignUpScreen
 import com.unibo.handy.ui.screens.SingleChatScreen
+import com.unibo.handy.ui.screens.SplashScreen
 import com.unibo.handy.ui.viewmodel.AuthViewModel
 import com.unibo.handy.ui.viewmodel.ChatViewModel
 import com.unibo.handy.ui.viewmodel.MatchViewModel
@@ -25,6 +29,7 @@ import com.unibo.handy.ui.viewmodel.UserViewModel
 
 // Indirizzi delle rotte (schermate) con Jetpack Navigation
 sealed class Screen(val route: String) {
+    object Splash : Screen("splash_screen")
     object SignUp : Screen("signup_screen")
     object Home : Screen("home_screen")
     object ChatDetail : Screen("chat_detail/{matchId}") {
@@ -37,29 +42,43 @@ sealed class Screen(val route: String) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HandyAppEntry() {
-    /*val viewModel: HomeVM = viewModel(factory = HomeVM.Factory)
-    val state by viewModel.uiState.collectAsState()
-    val navController = rememberNavController()
-
-    LaunchedEffect(state.userId) {
-        // Se l'ID non è vuoto
-        if (state.userId.isNotBlank()) {
-            if (navController.currentDestination?.route == Screen.SignUp.route) {
-                navController.navigate(Screen.Home.route) {
-                    // "popUpTo" serve a cancellare la cronologia dato che deve tornare al Signup
-                    popUpTo(Screen.SignUp.route) { inclusive = true }
-                }
-            }
-        }
-    }*/
     val navController = rememberNavController()
 
     // Contenitore che cambia schermata
     NavHost(
         navController = navController,
-        startDestination = Screen.SignUp.route
+        startDestination = Screen.Splash.route
     ) {
-        // ROTTA 1: Schermata di Signup
+        // --- ROTTA 1: SPLASH SCREEN ---
+        composable(Screen.Splash.route) {
+            val authVM: AuthViewModel = viewModel(factory = AuthViewModel.Factory)
+            val authState by authVM.authState.collectAsState()
+
+            //Naviga appena lo stato cambia
+            LaunchedEffect(authState) {
+                when (authState) {
+                    LOGGED_IN -> {
+                        // Utente trovato -> VAI ALLA HOME
+                        navController.navigate(Screen.Home.route) {
+                            popUpTo(Screen.Splash.route) { inclusive = true }
+                        }
+                    }
+                    NOT_LOGGED -> {
+                        // Nessun utente -> VAI AL SIGNUP
+                        navController.navigate(Screen.SignUp.route) {
+                            popUpTo(Screen.Splash.route) { inclusive = true }
+                        }
+                    }
+                    LOADING -> {
+                        // Rimani qui e mostra logo/caricamento
+                    }
+                }
+            }
+
+            SplashScreen()
+        }
+
+        // ROTTA 2: Schermata di Signup
         composable(Screen.SignUp.route) {
             // Inietto AuthViewModel
             val authVM: AuthViewModel = viewModel(factory = AuthViewModel.Factory)
@@ -81,19 +100,9 @@ fun HandyAppEntry() {
                 onPasswordChange = authVM::onPasswordChange,
                 onSignUpClick = authVM::signUp
             )
-            /*val state by authVM.uiState.collectAsState()
-            SignUpScreen(
-                viewModel = viewModel,
-                // Quando la registrazione manuale finisce (click bottone), passa a Home
-                onSignUpSuccess = {
-                    navController.navigate(Screen.Home.route) {
-                        popUpTo(Screen.SignUp.route) { inclusive = true }
-                    }
-                }
-            )*/
         }
 
-        // ROTTA 2: DASHBOARD
+        // ROTTA 3: DASHBOARD
         composable(Screen.Home.route) {
             // Inietto ViewModel
             val userVM: UserViewModel = viewModel(factory = UserViewModel.Factory)
@@ -141,11 +150,12 @@ fun HandyAppEntry() {
                     navController.navigate(Screen.ChatDetail.createRoute(matchId))
                 },
                 onRejectMatch = matchVM::rejectMatch,
-                onSearchParamUpdate = userVM::updateSearchParameters
+                onSearchParamUpdate = userVM::updateSearchParameters,
+                onHelperDraftChange = userVM::updateHelperDraft
             )
         }
 
-        // ROTTA 3: DETTAGLIO CHAT
+        // ROTTA 4: DETTAGLIO CHAT
         composable(Screen.ChatDetail.route) { backStackEntry ->
             val matchId = backStackEntry.arguments?.getString("matchId") ?: return@composable
             // Inietto ChatViewModel

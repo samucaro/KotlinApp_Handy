@@ -4,7 +4,7 @@ data class AuthUiState(
     val username: String = "",
     val email: String = "",
     val password: String = "",
-    val category: String = "Generic",
+    val category: String = "Generico",
     val isLoading: Boolean = false,
     val isSignUpSuccess: Boolean = false,
     val error: String? = null

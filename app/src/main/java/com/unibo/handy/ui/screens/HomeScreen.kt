@@ -18,6 +18,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -45,11 +46,13 @@ fun HomeScreen(
     matchState: MatchUiState,
     selectedCategory: String,
     searchRadius: Float,
-    onToggleHelper: (Boolean) -> Unit,
+    onToggleHelper: (Boolean, String) -> Unit,
     onRequestHelp: (String, Double) -> Unit,
     onDismissPopup: () -> Unit,
     onAcceptMatch: (String) -> Unit,
-    onSearchParamUpdate: (String, Float) -> Unit
+    onSearchParamUpdate: (String, Float) -> Unit,
+    helperDraftCategory: String,
+    onHelperDraftChange: (String) -> Unit
 ) {
     HomeContent(
         currentUser = currentUser,
@@ -66,7 +69,9 @@ fun HomeScreen(
             onSearchParamUpdate(selectedCategory, newRad)
         },
         onSendHelpRequest = { onRequestHelp(selectedCategory, searchRadius.toDouble()) },
-        onAcceptMatch = onAcceptMatch
+        onAcceptMatch = onAcceptMatch,
+        helperDraftCategory = helperDraftCategory,
+        onHelperDraftChange = onHelperDraftChange
     )
 }
 // Content Stateless (Solo UI)
@@ -77,12 +82,14 @@ fun HomeContent(
     matchState: MatchUiState,
     selectedCategory: String,
     searchRadius: Float,
-    onToggleHelperMode: (Boolean) -> Unit,
+    onToggleHelperMode: (Boolean, String) -> Unit,
     onDismissMatchPopup: () -> Unit,
     onCategoryChange: (String) -> Unit,
     onRadiusChange: (Float) -> Unit,
     onSendHelpRequest: () -> Unit,
-    onAcceptMatch: (String) -> Unit
+    onAcceptMatch: (String) -> Unit,
+    helperDraftCategory: String,
+    onHelperDraftChange: (String) -> Unit
 ) {
     Column(
         modifier = Modifier.fillMaxSize().padding(16.dp),
@@ -118,13 +125,37 @@ fun HomeContent(
         }
 
         // Switch Principale (Modalità)
-        ModeSwitchCard(isHelperMode, onToggleHelperMode)
+        ModeSwitchCard(
+            isHelper = isHelperMode,
+            onCheckedChange = { isChecked ->
+                if(!isChecked) {
+                    // L'utente accende lo switch:
+                    // Passa "Generico" per attivare la UI di configurazione (HelperView)
+                    // ma senza far partire ancora l'heartbeat reale
+                    onToggleHelperMode(false, "Generico")
+                } else {
+                    // L'utente spegne lo switch:
+                    // Torna richiedente
+                    onToggleHelperMode(true, "Generico")
+                }
+            }
+        )
 
         Spacer(modifier = Modifier.height(24.dp))
 
 
         if (isHelperMode) {
-            HelperView()
+            val userCategory = currentUser?.category ?: "Generico"
+
+            HelperView(
+                currentCategory = userCategory,
+                selectedDraftCategory = helperDraftCategory,
+                onDraftChange = onHelperDraftChange,
+                onStartService = { selectedCat ->
+                    // L'utente ha scelto la categoria e premuto Start -> Aggiorna DB e Server
+                    onToggleHelperMode(true, selectedCat)
+                }
+            )
         } else {
             RequesterView(
                 selectedCategory = selectedCategory,
@@ -179,27 +210,81 @@ fun HomeContent(
 }
 
 @Composable
-fun HelperView() {
+fun HelperView(
+    currentCategory: String,
+    selectedDraftCategory: String,
+    onDraftChange: (String) -> Unit,
+    onStartService: (String) -> Unit
+) {
+    val isServiceActive = currentCategory != "Generico"
+
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier.fillMaxWidth()
     ) {
-        Spacer(modifier = Modifier.height(40.dp))
-        Text(
-            "In ascolto...",
-            fontSize = 20.sp,
-            color = HandyPrimary,
-            fontWeight = FontWeight.SemiBold
-        )
-        Text(
-            "Il sistema sta proteggendo la tua posizione.",
-            fontSize = 14.sp,
-            color = Color.Gray
-        )
-        Spacer(modifier = Modifier.height(40.dp))
+        if(!isServiceActive) {
+            // --- FASE 1: CONFIGURAZIONE ---
+            Text(
+                "Qual è la tua competenza?",
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold,
+                color = HandyPrimary
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                "Seleziona la tua competenza per renderti visibile.",
+                fontSize = 14.sp,
+                color = Color.Gray
+            )
 
-        // Animazione Radar
-        RadarAnimation()
+            Spacer(modifier = Modifier.height(24.dp))
+
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                CategoryChip("Idraulico", selectedDraftCategory == "Idraulico") { onDraftChange("Idraulico") }
+                CategoryChip("Elettricista", selectedDraftCategory == "Elettricista") { onDraftChange("Elettricista") }
+                CategoryChip("Medico", selectedDraftCategory == "Medico") { onDraftChange("Medico") }
+            }
+
+            Spacer(modifier = Modifier.height(32.dp))
+
+            Button(
+                onClick = { onStartService(selectedDraftCategory) },
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32)),
+                modifier = Modifier.fillMaxWidth().height(56.dp),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Text("VAI ONLINE", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            }
+        } else {
+            // --- FASE 2: IN SERVIZIO ---
+            Spacer(modifier = Modifier.height(40.dp))
+            Text(
+                "Sei online come $currentCategory",
+                fontSize = 20.sp,
+                color = HandyPrimary,
+                fontWeight = FontWeight.SemiBold
+            )
+            Text(
+                "In attesa di richieste nelle vicinanze...",
+                fontSize = 14.sp,
+                color = Color.Gray
+            )
+            Spacer(modifier = Modifier.height(40.dp))
+
+            // Animazione Radar
+            RadarAnimation()
+
+            Spacer(modifier = Modifier.height(150.dp))
+
+            // Bottone per fermare il servizio (torna a Generico/Configurazione)
+            OutlinedButton(
+                onClick = { onStartService("Generico") },
+                modifier = Modifier.height(48.dp),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.Red)
+            ) {
+                Text("Ferma Servizio")
+            }
+        }
     }
 }
 

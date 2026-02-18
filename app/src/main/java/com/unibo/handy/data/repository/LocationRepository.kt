@@ -34,7 +34,7 @@ class LocationRepository(
 
         // 1. RECUPERO DATI UTENTE
         val user = userDao.getUserSnapshot()
-        if (user == null || !user.helpModeActive) {
+        if (user == null || !user.helpModeActive || user.category == "Generico") {
             Log.d("LocationRepo", "Hertbeat not sent. User null or not in helper mode.")
             return@withContext
         }

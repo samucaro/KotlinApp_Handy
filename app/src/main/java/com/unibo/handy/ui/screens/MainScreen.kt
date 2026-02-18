@@ -13,6 +13,7 @@ import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Sms
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
@@ -21,12 +22,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import com.unibo.handy.data.db.entity.MatchEntity
 import com.unibo.handy.ui.MatchUiState
 import com.unibo.handy.ui.UserUiState
 import com.unibo.handy.ui.components.NavBarItem
+import com.unibo.handy.ui.theme.HandyPrimary
 
 @Composable
 fun MainScreen(
@@ -36,13 +39,14 @@ fun MainScreen(
     matchState: MatchUiState,
     pendingMatches: List<MatchEntity>,
     activeChats: List<MatchEntity>,
-    onToggleHelper: (Boolean) -> Unit,
+    onToggleHelper: (Boolean, String) -> Unit,
     onRequestHelp: (String, Double) -> Unit,
     onOpenChat: (String) -> Unit,
     onDismissPopup: () -> Unit,
     onAcceptMatch: (String) -> Unit,
     onRejectMatch: (String) -> Unit,
-    onSearchParamUpdate: (String, Float) -> Unit
+    onSearchParamUpdate: (String, Float) -> Unit,
+    onHelperDraftChange: (String) -> Unit
 ) {
     var selectedTab by remember { mutableIntStateOf(0) }
 
@@ -82,29 +86,37 @@ fun MainScreen(
             modifier = Modifier.padding(innerPadding).fillMaxSize()
                 .background(Color(0xFFF5F7F8))
         ) {
-            when (selectedTab) {
-                0 -> HomeScreen(
-                    currentUser = userState.currentUser,
-                    isHelperMode = userState.isHelperMode,
-                    matchState = matchState,
-                    selectedCategory = userState.selectedCategory,
-                    searchRadius = userState.searchRadius,
-                    onToggleHelper = onToggleHelper,
-                    onRequestHelp = onRequestHelp,
-                    onDismissPopup = onDismissPopup,
-                    onAcceptMatch = onAcceptMatch,
-                    onSearchParamUpdate = onSearchParamUpdate
-                )
-                1 -> ActivityScreen(
-                    pendingMatches = pendingMatches,
-                    onAccept = onAcceptMatch,
-                    onReject = onRejectMatch
-                )
-                2 -> ChatListScreen(
-                    activeChats = activeChats,
-                    onChatClick = onOpenChat
-                )
-                3 -> ProfileScreen(currentUser = userState.currentUser)
+            if (!userState.isInitialDataLoaded) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = HandyPrimary)
+                }
+            } else {
+                when (selectedTab) {
+                    0 -> HomeScreen(
+                        currentUser = userState.currentUser,
+                        isHelperMode = userState.isHelperMode,
+                        matchState = matchState,
+                        selectedCategory = userState.selectedCategory,
+                        searchRadius = userState.searchRadius,
+                        onToggleHelper = onToggleHelper,
+                        onRequestHelp = onRequestHelp,
+                        onDismissPopup = onDismissPopup,
+                        onAcceptMatch = onAcceptMatch,
+                        onSearchParamUpdate = onSearchParamUpdate,
+                        helperDraftCategory = userState.helperCategoryDraft,
+                        onHelperDraftChange = onHelperDraftChange
+                    )
+                    1 -> ActivityScreen(
+                        pendingMatches = pendingMatches,
+                        onAccept = onAcceptMatch,
+                        onReject = onRejectMatch
+                    )
+                    2 -> ChatListScreen(
+                        activeChats = activeChats,
+                        onChatClick = onOpenChat
+                    )
+                    3 -> ProfileScreen(currentUser = userState.currentUser)
+                }
             }
         }
     }

@@ -34,6 +34,7 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -189,7 +190,7 @@ fun EmptyStateMessage() {
 }
 
 @Composable
-fun ModeSwitchCard(isHelper: Boolean, onToggle: (Boolean) -> Unit) {
+fun ModeSwitchCard(isHelper: Boolean, onCheckedChange: (Boolean) -> Unit) {
     Card(
         colors = CardDefaults.cardColors(containerColor = Color.White),
         elevation = CardDefaults.cardElevation(4.dp),
@@ -204,7 +205,16 @@ fun ModeSwitchCard(isHelper: Boolean, onToggle: (Boolean) -> Unit) {
                 Text(if (isHelper) "Modalità Helper" else "Modalità Richiedente", fontWeight = FontWeight.Bold, fontSize = 18.sp)
                 Text(if (isHelper) "Sei visibile per lavori" else "Cerca professionisti", fontSize = 14.sp, color = Color.Gray)
             }
-            Switch(checked = isHelper, onCheckedChange = onToggle)
+            Switch(
+                checked = isHelper,
+                onCheckedChange = onCheckedChange,
+                colors = SwitchDefaults.colors(
+                    checkedThumbColor = Color.White,
+                    checkedTrackColor = HandyPrimary,
+                    uncheckedThumbColor = Color.Gray,
+                    uncheckedTrackColor = Color.LightGray.copy(alpha = 0.4f)
+                )
+            )
         }
     }
 }

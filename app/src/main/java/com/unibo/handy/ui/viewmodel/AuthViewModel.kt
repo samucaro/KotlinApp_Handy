@@ -13,11 +13,33 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
+enum class AuthState { LOADING, LOGGED_IN, NOT_LOGGED }
+
 class AuthViewModel(
     private val userRepository: UserRepository
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(AuthUiState())
     val uiState = _uiState.asStateFlow()
+
+    private val _authState = MutableStateFlow(AuthState.LOADING)
+    val authState = _authState.asStateFlow()
+
+    init {
+        checkUserSession()
+    }
+
+    private fun checkUserSession() {
+        viewModelScope.launch {
+            // Controlla se nel DB esiste un utente
+            userRepository.currentUserFlow.collect { user ->
+                if (user != null) {
+                    _authState.value = AuthState.LOGGED_IN
+                } else {
+                    _authState.value = AuthState.NOT_LOGGED
+                }
+            }
+        }
+    }
 
     fun onUsernameChange(newValue: String) { _uiState.update { it.copy(username = newValue) } }
     fun onEmailChange(newValue: String) { _uiState.update { it.copy(email = newValue) } }
@@ -28,7 +50,7 @@ class AuthViewModel(
             _uiState.update { it.copy(isLoading = true, error = null) }
             try {
                 val s = _uiState.value
-                userRepository.updateUserProfile(s.username, s.email, s.password, s.category)
+                userRepository.updateUserProfile(s.username, s.email, s.password)
                 // Segnala alla UI che la navigazione può procedere
                 _uiState.update { it.copy(isLoading = false, isSignUpSuccess = true) }
             } catch (e: Exception) {

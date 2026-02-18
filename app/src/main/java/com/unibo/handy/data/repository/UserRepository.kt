@@ -31,8 +31,8 @@ class UserRepository(
     val currentUserFlow: Flow<UserEntity?> = userDao.getUserFlow()
 
     // Metodo di semplice registrazione/aggiornamento nel sistema (profile_update_request, interazione con VM)
-    suspend fun updateUserProfile(username: String, email: String, psw: String, category: String) {
-        Log.i("UserRepo", "Updating profile: $username ($category)")
+    suspend fun updateUserProfile(username: String, email: String, psw: String) {
+        Log.i("UserRepo", "Updating profile: $username")
 
         // Verifica esistenza utente nel DB locale
         // Se esiste lo aggiorna, altrimenti crea uno nuovo
@@ -45,18 +45,24 @@ class UserRepository(
             username = username,
             email = email,
             passwordHash = psw, //hashare psw
-            category = category,
+            category = "Generico",
             helpModeActive = isHelper
         )
+
+        try {
+            // Registra/Aggiorna il profilo nel server al quale servono solo 3 dei 7 campi
+            registerOnServer(userId, "Generico", isHelper)
+        } catch (e: Exception) {
+            Log.e("UserRepo", "Server unreachable: cannot register user.")
+            throw Exception("Server non disponibile: impossibile registrarsi.")
+        }
+
         userDao.insertUser(newUser)
         Log.d("UserRepo", "User saved: $userId")
-
-        // Registra/Aggiorna il profilo nel server al quale servono solo 3 dei 7 campi
-        registerOnServer(userId, category, isHelper)
     }
 
     // Metodo per aggiornare lo stato di modalità di aiuto
-    suspend fun setHelperMode(isActive: Boolean) = withContext(Dispatchers.IO) {
+    suspend fun setHelperMode(isActive: Boolean, category: String) = withContext(Dispatchers.IO) {
         val user = userDao.getUserSnapshot()
 
         if (user == null) {
@@ -66,11 +72,11 @@ class UserRepository(
 
         Log.i("UserRepo", "Setting helper mode: $isActive")
 
-        // Aggiorna solo il flag nel DB. La UI reagirà automaticamente grazie al Flow.
-        userDao.insertUser(user.copy(helpModeActive = isActive))
+        // Aggiorna solo il parametro helpModeActive nel DB. La UI reagirà automaticamente grazie al Flow.
+        userDao.insertUser(user.copy(helpModeActive = isActive, category = category))
 
         // Sincronizza lo stato con il server
-        registerOnServer(user.userId, user.category, isActive)
+        registerOnServer(user.userId, category, isActive)
     }
 
     // Canale di comunicazione con il server tramite Retrofit REST
@@ -89,6 +95,7 @@ class UserRepository(
                 Log.d("UserRepository", "Registration successful")
             } else {
                 Log.e("UserRepository", "Registration failed: ${response.code()}")
+                throw Exception("Errore Server: ${response.code()}")
             }
         } catch (e: Exception) {
             Log.e("UserRepository", "Registration error", e)
