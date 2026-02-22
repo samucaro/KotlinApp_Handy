@@ -3,11 +3,12 @@ package com.unibo.handy.domain
 import android.util.Log
 import com.unibo.handy.data.db.dao.StoredClientDAO
 import com.unibo.handy.data.network.dto.TuplaDTO
+import java.math.BigInteger
 
 class MatchingService(
     private val storedClientDao: StoredClientDAO
 ) {
-    suspend fun verifyMatch(tupla: TuplaDTO): Boolean {
+    suspend fun verifyMatch(tupla: TuplaDTO, privateKey: BigInteger, modulus: BigInteger): Boolean {
         Log.i("HandyMatch", "--- INIZIO PROCESSO DI MATCHING ---")
         Log.d("HandyMatch", "Target ID (Io): ${tupla.t2TargetId}")
 
@@ -27,13 +28,15 @@ class MatchingService(
         // 2. Orchestrazione del calcolo
         return try {
             val isCompatible = PrivacyEngine.computeMatching(
-                t3 = tupla.t3BetaPlusX,
-                t4 = tupla.t4BetaPlusY,
-                t5 = tupla.t5SumUserBlur,
-                t6 = tupla.t6SumServerBlur,
-                t7 = tupla.t7Tolerance,
+                t3x = tupla.t3BetaPlusX,
+                t3y = tupla.t3BetaPlusY,
+                t4 = tupla.t4SumUserBlur,
+                t5 = tupla.t5SumServerBlur,
+                t6 = tupla.t6Tolerance,
                 storedX = storedProfile.reblurredX,
-                storedY = storedProfile.reblurredY
+                storedY = storedProfile.reblurredY,
+                privateKey = privateKey,
+                n = modulus
             )
             if (isCompatible) {
                 Log.i("HandyMatch", "RISULTATO: COMPATIBILE! Distanza < Tolleranza")

@@ -1,6 +1,9 @@
 package com.unibo.handy.domain
 
 import android.util.Log
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.math.BigInteger
 import java.security.SecureRandom
 import kotlin.math.abs
 import kotlin.math.sqrt
@@ -104,55 +107,74 @@ object PrivacyEngine {
 
     /**
      * FASE 3: MATCHING (Ruolo: Service Client)
-     * Verifica se la distanza è < tolleranza rimuovendo il rumore.
+     * Verifica se la distanza è < tolleranza rimuovendo il rumore (equazione 16 paper).
+     * Eseguito asincronamente per via del pesante carico computazionale di Paillier.
      */
-    fun computeMatching(
+    suspend fun computeMatching(
         // Dati dalla Tupla
-        t3: Long, t4: Long, // Beta+ X, Y; saranno con Paillier
-        t5: Long, // Somma Blur Utenti, saranno con Paillier
-        t6: Long, // Somma Blur Server
-        t7: Long, // Tolleranza sarà con Paillier
+        t3x: Long, t3y: Long, // Beta+ X, Y reblurred dal server
+        t4: String, // Somma Blur Utenti, cifrata con Paillier
+        t5: Long, // Somma Blur specifici dei client generati dal server
+        t6: String, // Tolleranza con Paillier
 
         // Dati dal DB Locale
-        storedX: Long, // Coordinata X reblurrata del client posseduto sarà con Paillier
-        storedY: Long  // Coordinata Y reblurrata del client posseduto sarà con Paillier
-    ): Boolean {
-        // --- CALCOLO ASSE X ---
-        // Formula: (T3 - StoredX - T5 - T6)
+        storedX: Long, // Coordinata X reblurrata del client posseduto
+        storedY: Long,  // Coordinata Y reblurrata del client posseduto
 
-        // 1. Differenza tra le coordinate offuscate (T3 - StoredX)
-        val rawDiffX = modSub(t3, storedX)
+        // Chiavi crittografiche (sk condivisa e modulo pubblico n)
+        privateKey: BigInteger,
+        n: BigInteger
+    ): Boolean = withContext(Dispatchers.Default) {
+        // --- 1. DECIFRATURA OMOMORFICA ---
+        // \delta_{sk}^h(^4T_{lj}) e \delta_{sk}^h(^6T_{lj})
+        val t5DecryptedBigInt = PaillierEncryption.decrypt(BigInteger(t4), n, privateKey)
+        val toleranceBigInt = PaillierEncryption.decrypt(BigInteger(t6), n, privateKey)
 
-        // 2. Rimozione dei rumori ( - T5 - T6 )
+        // Riconvertiamo in Long solo DOPO aver decifrato (il plaintext originale rientra nei 64 bit)
+        val t4Decrypted = t5DecryptedBigInt.toLong()
+        val toleranceDecrypted = toleranceBigInt.toLong()
+
+
+        // -----------------------------------------------------------------------------------------
+
+
+        // --- 2. CALCOLO ASSE X ---
+        // Formula paper: (T3 - StoredX - T5 - T6)
+
+        // Differenza tra le coordinate offuscate (T3 - StoredX)
+        val rawDiffX = modSub(t3x, storedX)
+
+        // Rimozione dei rumori ( - T5 - T6 )
         // Rimuovo il blur del server
-        var cleanDeltaX = modSub(rawDiffX, t5)
+        var cleanDeltaX = modSub(rawDiffX, t4Decrypted)
         // Rimuovo il blur degli utenti
-        cleanDeltaX = modSub(cleanDeltaX, t6)
+        cleanDeltaX = modSub(cleanDeltaX, t5)
 
-        // 3. Gestione distanza minima sull'anello (Wrapping)
         val metricX = minMetricDistance(cleanDeltaX)
 
-
-        // --- CALCOLO ASSE Y ---
+        // --- 3. CALCOLO ASSE Y ---
         // Formula: (T4 - StoredY - T5 - T6)
 
-        val rawDiffY = modSub(t4, storedY)
-        var cleanDeltaY = modSub(rawDiffY, t5)
-        cleanDeltaY = modSub(cleanDeltaY, t6)
+        val rawDiffY = modSub(t3y, storedY)
+        var cleanDeltaY = modSub(rawDiffY, t4Decrypted)
+        cleanDeltaY = modSub(cleanDeltaY, t5)
 
         val metricY = minMetricDistance(cleanDeltaY)
 
 
-        // --- CALCOLO DISTANZA EUCLIDEA ---
-        // Sqrt( x^2 + y^2 )
+        // -----------------------------------------------------------------------------------------
+
+
+        // --- 4. CALCOLO DISTANZA EUCLIDEA ---
+
         val distSquared = (metricX * metricX) + (metricY * metricY)
         val distance = sqrt(distSquared.toDouble())
 
-        Log.d("HandyCrypto", "Distanza Calcolata: $distance | Soglia (T7): $t7")
+        Log.d("HandyCrypto", "Distance calculated: $distance | Decrypted tolerance: $toleranceDecrypted")
 
-        // --- VERIFICA SOGLIA ---
-        // Distanza <= T7
-        return distance <= t7
+        // --- 5. VERIFICA SOGLIA ---
+        // Controlla se la distanza calcolata è minore della tolleranza decifrata
+        distance <= toleranceDecrypted
     }
 
     // --- FUNZIONI MATEMATICHE DI SUPPORTO ---

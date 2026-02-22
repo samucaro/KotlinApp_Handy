@@ -6,7 +6,9 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.unibo.handy.HandyApp
+import com.unibo.handy.data.repository.SecureKeyRepository
 import com.unibo.handy.data.repository.UserRepository
+import com.unibo.handy.domain.PaillierEncryption
 import com.unibo.handy.ui.AuthUiState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -16,7 +18,8 @@ import kotlinx.coroutines.launch
 enum class AuthState { LOADING, LOGGED_IN, NOT_LOGGED }
 
 class AuthViewModel(
-    private val userRepository: UserRepository
+    private val userRepository: UserRepository,
+    private val secureKeyRepository: SecureKeyRepository
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(AuthUiState())
     val uiState = _uiState.asStateFlow()
@@ -51,6 +54,13 @@ class AuthViewModel(
             try {
                 val s = _uiState.value
                 userRepository.updateUserProfile(s.username, s.email, s.password)
+
+                // --- SIMULAZIONE TTP (Trusted Third Party) ---
+                // Genera la coppia di chiavi Paillier (modulo e chiave privata)
+                val (modulus, privateKey) = PaillierEncryption.keygen()
+                // Salvataggio sicuro nell'Hardware Keystore
+                secureKeyRepository.saveKeys(privateKey, modulus)
+
                 // Segnala alla UI che la navigazione può procedere
                 _uiState.update { it.copy(isLoading = false, isSignUpSuccess = true) }
             } catch (e: Exception) {
@@ -64,7 +74,10 @@ class AuthViewModel(
         val Factory: ViewModelProvider.Factory = viewModelFactory {
             initializer {
                 val app = (this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY] as HandyApp)
-                AuthViewModel(app.userRepository)
+                AuthViewModel(
+                    app.userRepository,
+                    app.secureKeyRepository
+                )
             }
         }
     }

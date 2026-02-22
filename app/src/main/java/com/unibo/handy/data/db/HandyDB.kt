@@ -13,7 +13,7 @@ import com.unibo.handy.data.db.dao.UserDAO
 import com.unibo.handy.data.db.entity.ChatMessagesEntity
 import com.unibo.handy.data.db.entity.MatchEntity
 import androidx.room.TypeConverters
-import com.unibo.handy.domain.HandyTypeConverters
+import com.unibo.handy.data.db.HandyTypeConverters
 
 @Database(
     entities = [

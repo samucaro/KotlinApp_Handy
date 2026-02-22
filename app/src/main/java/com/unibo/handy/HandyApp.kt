@@ -9,9 +9,11 @@ import com.unibo.handy.data.repository.UserRepository
 import com.unibo.handy.data.repository.ChatRepository
 import com.unibo.handy.data.repository.LocationRepository
 import com.unibo.handy.data.repository.MatchingRepository
+import com.unibo.handy.data.repository.SecureKeyRepository
 import com.unibo.handy.data.network.MessageDispatcher
 import com.unibo.handy.data.LocationClientSensor
 import com.unibo.handy.data.network.RetrofitClient
+import com.unibo.handy.domain.CryptoManager
 import com.unibo.handy.data.network.WebSocketManager
 import com.unibo.handy.data.repository.strategy.ChatMessageStrategy
 import com.unibo.handy.data.repository.strategy.ComputeMatchStrategy
@@ -40,6 +42,10 @@ class HandyApp : Application() {
         MatchingService(db.storedClientDao())
     }
 
+    // --- SECURITY COMPONENTS ---
+    // Instanziamento del CryptoManager (che parla con il Keystore di Android)
+    val cryptoManager by lazy { CryptoManager() }
+
     // --- 1. REPOSITORIES ---
     val locationRepository by lazy {
         LocationRepository(
@@ -62,7 +68,8 @@ class HandyApp : Application() {
             webSocketManager = webSocketManager,
             matchDao = db.matchDao(),
             storedClientDao = db.storedClientDao(),
-            matchingService = matchingService
+            matchingService = matchingService,
+            secureKeyRepository = secureKeyRepository
         )
     }
 
@@ -73,6 +80,10 @@ class HandyApp : Application() {
             db.matchDao(),
             webSocketManager
         )
+    }
+
+    val secureKeyRepository by lazy {
+        SecureKeyRepository(this, cryptoManager)
     }
 
     // --- 2. STRATEGIES ---

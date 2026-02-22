@@ -27,7 +27,8 @@ class MatchingRepository(
     private val webSocketManager: WebSocketManager,
     private val matchDao: MatchDAO,
     private val storedClientDao: StoredClientDAO,
-    private val matchingService: MatchingService
+    private val matchingService: MatchingService,
+    private val secureKeyRepository: SecureKeyRepository
 ) {
     private val gson: Gson = Gson()
     // Flow per notificare la UI di nuovi match
@@ -39,8 +40,18 @@ class MatchingRepository(
         try {
             Log.d("MatchingRepo", "ComputeMatch received for: ${payload.t2TargetId}")
 
+            // Recupero chiavi crittografiche ---
+            val privateKey = secureKeyRepository.getPrivateKey()
+            val modulus = secureKeyRepository.getPublicModulus()
+
+            // Controllo di sicurezza: se non abbiamo le chiavi, l'utente non si è registrato correttamente
+            if (privateKey == null || modulus == null) {
+                Log.e("MatchingRepo", "CRITICAL ERROR: Keys not found in hardware keystore. Cannot perform match.")
+                return@withContext
+            }
+
             // Delega al Domain Service la matematica pura
-            val isCompatible = matchingService.verifyMatch(payload)
+            val isCompatible = matchingService.verifyMatch(payload, privateKey, modulus)
 
             if (isCompatible) {
                 Log.i("MatchingRepo", "MATCH FOUND! Saving to db...")

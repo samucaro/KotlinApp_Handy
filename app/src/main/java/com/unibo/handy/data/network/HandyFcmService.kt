@@ -1,4 +1,4 @@
-package com.unibo.handy.domain.service
+package com.unibo.handy.data.network
 
 import android.util.Log
 import com.google.firebase.messaging.FirebaseMessagingService

@@ -6,7 +6,6 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.unibo.handy.HandyApp
-import com.unibo.handy.data.network.NetworkStatus
 import com.unibo.handy.data.network.WebSocketManager
 import com.unibo.handy.data.repository.UserRepository
 import com.unibo.handy.ui.UserUiState

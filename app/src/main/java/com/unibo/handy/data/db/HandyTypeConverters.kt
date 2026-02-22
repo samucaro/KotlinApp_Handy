@@ -1,4 +1,4 @@
-package com.unibo.handy.domain
+package com.unibo.handy.data.db
 
 import androidx.room.TypeConverter
 import com.unibo.handy.data.db.entity.MatchStatus

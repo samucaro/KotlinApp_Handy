@@ -88,6 +88,9 @@ dependencies {
     // --- BACKGROUND ---
     implementation(libs.androidx.work.runtime.ktx)
 
+    // --- CIFRATURA DATI SENSIBILI ---
+    implementation(libs.androidx.datastore.preferences)
+
     // --- TESTING ---
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
