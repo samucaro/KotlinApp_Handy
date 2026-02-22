@@ -6,7 +6,15 @@ import android.content.pm.ServiceInfo
 import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import androidx.work.Constraints
+import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.NetworkType
+import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.WorkManager
+import com.google.gson.JsonParser
+import com.unibo.handy.data.network.HeartbeatWorker
 import com.unibo.handy.data.network.MessageDispatcher
+import com.unibo.handy.data.network.NetworkStatus
 import com.unibo.handy.data.network.WebSocketManager
 import com.unibo.handy.data.repository.LocationRepository
 import com.unibo.handy.data.repository.UserRepository
@@ -19,6 +27,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import java.util.concurrent.TimeUnit
 
 // Funge da pattern FACADE
 class NetworkService : Service() {
@@ -82,6 +91,7 @@ class NetworkService : Service() {
                     Log.d("HandyService", "Logout: Stop dispatcher and colse socket")
                     dispatcher.stopDispatching()
                     webSocketManager.close()
+                    WorkManager.getInstance(applicationContext).cancelUniqueWork("HeartbeatWork")
                     return@collectLatest
                 }
 
@@ -96,20 +106,65 @@ class NetworkService : Service() {
                     }
                 }
 
-                // 2. Avvio dispatcher
-                dispatcher.startDispatching()
+                // 2. Ascolto del WebSocket e invio al Dispatcher
+                launch {
+                    webSocketManager.incomingMessages.collectLatest { rawMessage ->
+                        try {
+                            // 1. Parsing preliminare solo per ottenere "type" e "payload" come JsonElement
+                            val root = JsonParser.parseString(rawMessage).asJsonObject
+                            val action = root.get("type")?.asString
+                            val payload = root.get("payload")?.toString()
 
-
-                // 3. LOOP HEARTBEAT (Stateless - Solo se helper Mode)
-                if(user.helpModeActive) {
-                    Log.d("HandyService", "Helper mode: Start heartbeat")
-                    // Lancia una coroutine figlia che vive finché `collectLatest` non ricomincia
-                    launch {
-                        while (isActive) {
-                            locationRepo.sendHeartbeat()
-                            delay(30_000)
+                            if (action != null && payload != null) {
+                                // Passa il messaggio al dispatcher
+                                dispatcher.dispatch(action, payload)
+                            }
+                        } catch (e: Exception) {
+                            Log.e("HandyService", "Errore parsing messaggio socket", e)
                         }
                     }
+                }
+
+
+                // 3. WORKMANAGER HEARTBEAT (Stateless - Solo se helper Mode)
+                if (user.helpModeActive) {
+                    Log.d("HandyService", "Helper mode ON: Start Dual Rate Strategy")
+
+                    // --- STRATEGIA 1: BACKGROUND (WorkManager a 15 min) ---
+                    // Configura il WorkManager per eseguire l'heartbeat solo se c'è connessione internet
+                    val constraints = Constraints.Builder()
+                        .setRequiredNetworkType(NetworkType.CONNECTED)
+                        .build()
+
+                    // Schedulazione a 15 minuti (limite minimo di Android)
+                    val heartbeatRequest = PeriodicWorkRequestBuilder<HeartbeatWorker>(15, TimeUnit.MINUTES)
+                        .setConstraints(constraints)
+                        .build()
+
+                    // Se c'è già un worker con lo stesso nome, UPDATE lo sovrascrive con le nuove impostazioni
+                    WorkManager.getInstance(applicationContext).enqueueUniquePeriodicWork(
+                        "HeartbeatWork",
+                        ExistingPeriodicWorkPolicy.UPDATE,
+                        heartbeatRequest
+                    )
+
+                    // --- STRATEGIA 2: FOREGROUND (Coroutine a 5 min) ---
+                    // Questo gira solo finché l'app/servizio è vivo
+                    launch {
+                        Log.d("HandyService", "Avvio ciclo heartbeat rapido (5 min)")
+                        while (isActive) {
+                            // Inviamo la posizione
+                            locationRepo.sendHeartbeat()
+
+                            // Aspettiamo 5 minuti (300.000 millisecondi)
+                            // Non scendere sotto i 3-5 minuti per rispettare i vincoli del paper SamaritanCloud
+                            delay(5 * 60 * 1000L)
+                        }
+                    }
+                } else {
+                    // SE L'UTENTE SPEGNE L'HELPER MODE, CANCELLIAMO IL WORKER
+                    Log.d("HandyService", "Helper mode OFF: Cancel WorkManager")
+                    WorkManager.getInstance(applicationContext).cancelUniqueWork("HeartbeatWork")
                 }
             }
         }
@@ -120,6 +175,7 @@ class NetworkService : Service() {
         dispatcher.stopDispatching()
         scope.cancel()
         webSocketManager.close()
+        WorkManager.getInstance(applicationContext).cancelUniqueWork("HeartbeatWork")
         super.onDestroy()
     }
 

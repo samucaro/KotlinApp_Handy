@@ -5,5 +5,6 @@ import com.google.gson.annotations.SerializedName
 data class RegistrationDTO(
     @SerializedName("clientId") val clientId: String,
     @SerializedName("category") val category: String,
-    @SerializedName("isHelper") val isHelper: Boolean
+    @SerializedName("isHelper") val isHelper: Boolean,
+    @SerializedName("fcmToken") val fcmToken: String? = null
 )

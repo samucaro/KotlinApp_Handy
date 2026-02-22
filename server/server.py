@@ -1,8 +1,21 @@
 import json
 import random
+import time
 from typing import Dict, Optional
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
-from pydantic import BaseModel # <--- NECESSARIO PER IL DTO
+from pydantic import BaseModel
+import firebase_admin
+from firebase_admin import credentials, messaging
+
+# ==========================================
+# INIZIALIZZAZIONE FIREBASE ADMIN SDK
+# ==========================================
+try:
+    cred = credentials.Certificate("samaritan-cloud-firebase-adminsdk-fbsvc-fa3fd80e1b.json")
+    firebase_admin.initialize_app(cred)
+    print("Firebase Admin inizializzato con successo.")
+except Exception as e:
+    print(f"ATTENZIONE: Errore inizializzazione Firebase (File mancante?): {e}")
 
 app = FastAPI()
 
@@ -47,28 +60,24 @@ class ConnectionManager:
             del active_connections[client_id]
         print(f"<-- WS Disconnesso: {client_id}")
 
-    async def send_json(self, message: dict, client_id: str):
-        if client_id in active_connections:
-            try:
-                # Android Gson si aspetta una stringa JSON
-                await active_connections[client_id].send_text(json.dumps(message))
-            except Exception as e:
-                print(f"Errore invio a {client_id}: {e}")
-
 manager = ConnectionManager()
-
 
 # --- MODELLI DATI (DTO) PER API HTTP ---
 class RegistrationDTO(BaseModel):
     clientId: str
     category: str
     isHelper: bool
+    fcmToken: Optional[str] = None
 
 class HeartBeatModel(BaseModel):
     clientId: str
     blurredX: int
     blurredY: int
     encryptedBlur: int
+
+class FcmTokenDTO(BaseModel):
+    clientId: str
+    fcmToken: str
 
 class HelpRequestModel(BaseModel):
     clientId: str
@@ -78,9 +87,37 @@ class HelpRequestModel(BaseModel):
     encryptedR: int
     encryptedTol: int
 
+# ==========================================
+# HELPER: INVIO MESSAGGI FIREBASE (FCM)
+# ==========================================
+def send_fcm_message(token: str, action: str, payload_dict: dict):
+    """
+    Invia un Data Message tramite Firebase Cloud Messaging.
+    Questo sveglierà l'app Android in background invocando HandyFcmService.
+    """
+    if not token:
+        print(f"   -> INVIO FCM FALLITO: Token mancante per l'azione {action}")
+        return
 
-# --- API HTTP (REST) ---
+    # I Data Message FCM richiedono che tutti i valori nel dizionario siano stringhe.
+    # Quindi serializziamo il payload in una stringa JSON.
+    message = messaging.Message(
+        data={
+            "action": action,
+            "payload": json.dumps(payload_dict)
+        },
+        token=token
+    )
+    
+    try:
+        response = messaging.send(message)
+        print(f"   -> FCM Inviato [{action}]: {response}")
+    except Exception as e:
+        print(f"   -> ERRORE FCM: {e}")
 
+# ==========================================
+# API HTTP (REST) - LOGICA SAMARITAN CLOUD
+# ==========================================
 @app.post("/register_profile")
 async def register_user(data: RegistrationDTO):
     """
@@ -93,6 +130,7 @@ async def register_user(data: RegistrationDTO):
     client_registry[data.clientId] = {
         "category": data.category,
         "isHelper": data.isHelper,
+        "fcmToken": data.fcmToken,
         "last_known_r": client_registry.get(data.clientId, {}).get("last_known_r", 0)
     }
 
@@ -104,6 +142,18 @@ async def register_user(data: RegistrationDTO):
         pass
 
     return {"status": "registered/updated", "clientId": data.clientId}
+
+@app.post("/update_fcm_token")
+async def update_token(data: FcmTokenDTO):
+    if data.clientId in client_registry:
+        client_registry[data.clientId]["fcmToken"] = data.fcmToken
+        print(f"Token FCM aggiornato per {data.clientId}")
+        return {"status": "token_updated"}
+    else:
+        # Se il server è stato riavviato e ha perso la RAM, ricrea l'utente base
+        print(f"WARN: Token ricevuto per utente sconosciuto {data.clientId}. Ricreo voce base.")
+        client_registry[data.clientId] = {"category": "Generico", "isHelper": False, "fcmToken": data.fcmToken, "last_known_r": 0}
+        return {"status": "user_created_and_token_updated"}
 
 @app.post("/heartbeat")
 async def receive_heartbeat(data: HeartBeatModel):
@@ -221,127 +271,21 @@ async def receive_help_request(data: HelpRequestModel):
         # Trova chi custodisce questo target (nel test locale sei tu)
         service_client_id = storage_map.get(target_id)
 
-        if service_client_id:
-            msg = {
-                "type": "COMPUTE_MATCH", # Questo attiverà ComputeMatchStrategy su Android
-                "payload": tupla_payload
-            }
-            await manager.send_json(msg, service_client_id)
-            print(f"   -> COMPUTE_MATCH inviato a {service_client_id} (Target: {target_id})")
+        if service_client_id and service_client_id in client_registry:
+            # Recuperiamo il token FCM del Service Client
+            fcm_token = client_registry[service_client_id].get("fcmToken")
+
+            # Inviamo tramite Firebase!
+            send_fcm_message(
+                token=fcm_token,
+                action="COMPUTE_MATCH",
+                payload_dict=tupla_payload
+            )
             sent_count += 1
 
     return {"status": "processed", "candidates_contacted": sent_count}
 
 # --- LOGICA DI BUSINESS WEBSOCKET ---
-
-async def handle_heartbeat(data: dict):
-    """
-    Input: HeartBeatDTO via WebSocket
-    """
-    target_uuid = data.get("clientId")
-    beta_minus_x = data.get("blurredX")
-    beta_minus_y = data.get("blurredY")
-    user_enc_r = data.get("encryptedBlur") 
-
-    # 1. Aggiorna registro (se l'utente esiste già grazie alla API)
-    if target_uuid in client_registry:
-        client_registry[target_uuid]["last_known_r"] = user_enc_r
-    else:
-        print(f"WARN: Heartbeat da utente non registrato {target_uuid}")
-        return
-
-    # 2. Gestione Rumore Server
-    if target_uuid not in server_noise_storage:
-        server_noise_storage[target_uuid] = generate_server_noise()
-
-    srv_noise = server_noise_storage[target_uuid]
-
-    # 3. Re-Blurring
-    reblurred_x = mod_sub(beta_minus_x, srv_noise)
-    reblurred_y = mod_sub(beta_minus_y, srv_noise)
-
-    # 4. Invia al Service Client
-    service_client_id = storage_map.get(target_uuid)
-
-    if service_client_id:
-        msg = {
-            "type": "STORE_PROFILE",
-            "payload": {
-                "target_id": target_uuid,
-                "reblurred_x": reblurred_x,
-                "reblurred_y": reblurred_y,
-                "username": f"User_{target_uuid[:5]}",
-                "category": client_registry[target_uuid]["category"],
-                "rating": 5
-            }
-        }
-        await manager.send_json(msg, service_client_id)
-        print(f"HEARTBEAT: {target_uuid} -> Reinstradato a {service_client_id}")
-
-
-async def handle_help_request(data: dict):
-    """
-    Input: HelpRequestDTO via WebSocket
-    """
-    requester_id = data.get("clientId")
-    category_needed = data.get("category")
-    beta_plus_x = data.get("blurredX")
-    beta_plus_y = data.get("blurredY")
-    req_enc_r = data.get("encryptedR")
-    req_tol = data.get("encryptedTol")
-
-    print(f"RICHIESTA: {requester_id} cerca {category_needed}")
-
-    # 1. Filtra candidati
-    candidates = [
-        uid for uid, info in client_registry.items()
-        if info.get("category") == category_needed and uid != requester_id
-    ]
-
-    # DEBUG: Auto-match se non ci sono altri utenti
-    if not candidates and requester_id in client_registry:
-        if client_registry[requester_id].get("category") == category_needed:
-            print("DEBUG: Nessun candidato. Uso il richiedente come target di test.")
-            candidates.append(requester_id)
-
-    # 2. Genera Rumore Server per il Richiedente
-    srv_noise_req = generate_server_noise()
-
-    # 3. Costruisci Tupla per ogni candidato
-    for target_id in candidates:
-
-        if target_id not in server_noise_storage:
-            print(f"Skip {target_id}: Nessun heartbeat ricevuto.")
-            continue
-
-        srv_noise_target = server_noise_storage[target_id]
-        target_enc_r = client_registry[target_id]["last_known_r"]
-
-        # --- CALCOLO TUPLA ---
-        t3 = mod_add(beta_plus_x, srv_noise_req)
-        t4 = mod_add(beta_plus_y, srv_noise_req)
-        t5 = mod_add(req_enc_r, target_enc_r)
-        t6 = mod_add(srv_noise_req, srv_noise_target)
-
-        tupla_payload = {
-            "t1_requesterId": requester_id,
-            "t2_targetId": target_id,
-            "t3_betaPlusX": t3,
-            "t4_betaPlusY": t4,
-            "t5_sumUserBlur": t5,
-            "t6_sumServerBlur": t6,
-            "t7_tolerance": req_tol
-        }
-
-        service_client_id = storage_map.get(target_id)
-
-        if service_client_id:
-            msg = {
-                "type": "COMPUTE_MATCH",
-                "payload": tupla_payload
-            }
-            await manager.send_json(msg, service_client_id)
-            print(f"MATCH CHECK: Inviata tupla a {service_client_id} (Target: {target_id})")
 
 async def handle_chat_message(data: dict, sender_id: str):
     """
@@ -392,23 +336,16 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
 
             data = json.loads(text)
 
-            # Dispatch logic:
-            # NOTA: La registrazione è stata rimossa da qui perché è gestita via HTTP
+            msg_type = data.get("type")
             
-            if "encryptedBlur" in data:
-                # È un Heartbeat
-                await handle_heartbeat(data)
-            elif "encryptedTol" in data:
-                # È una richiesta di aiuto
-                await handle_help_request(data)
-            elif data.get("type") == "MATCH_FOUND":
+            if msg_type == "MATCH_FOUND":
                 print(f"MATCH CONFIRMED! Il Client {client_id} ha validato la connessione.")
-                print(f"   - Requester: {data.get('requester_id')}")
-                print(f"   - Target: {data.get('target_id')}")
-            elif data.get("type") == "CHAT_MESSAGE":
+                # Qui potresti notificare il requester che un helper ha accettato!
+                # È un Heartbeat
+            elif msg_type == "CHAT_MESSAGE":
                 await handle_chat_message(data, client_id)
             else:
-                print(f"WARN: Messaggio WS non riconosciuto da {client_id}")
+                print(f"WARN: Messaggio WS non riconosciuto da {client_id}: {text}")
 
     except WebSocketDisconnect:
         manager.disconnect(client_id)

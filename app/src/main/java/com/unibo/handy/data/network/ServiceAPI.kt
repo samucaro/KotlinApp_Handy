@@ -1,5 +1,6 @@
 package com.unibo.handy.data.network
 
+import com.unibo.handy.data.network.dto.FcmTokenDTO
 import com.unibo.handy.data.network.dto.HeartBeatDTO
 import com.unibo.handy.data.network.dto.HelpRequestDTO
 import com.unibo.handy.data.network.dto.RegistrationDTO
@@ -17,4 +18,7 @@ interface ServiceAPI {
 
     @POST("/help_request")
     suspend fun sendHelpRequest(@Body payload: HelpRequestDTO): Response<Unit>
+
+    @POST("/update_fcm_token")
+    suspend fun updateFcmToken(@Body payload: FcmTokenDTO): Response<Unit>
 }

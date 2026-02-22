@@ -2,7 +2,6 @@ package com.unibo.handy.data.repository.strategy
 
 import android.util.Log
 import com.google.gson.Gson
-import com.google.gson.JsonElement
 import com.unibo.handy.data.network.dto.StoreProfileDTO
 import com.unibo.handy.data.repository.MatchingRepository
 
@@ -12,7 +11,7 @@ class StoreProfileStrategy(
     private val matchingRepo: MatchingRepository,
     private val gson: Gson
 ) : MessageStrategy {
-    override suspend fun handle(payload: JsonElement) {
+    override suspend fun handle(payload: String) {
         Log.d("StoreProfileStrategy", "Profile update message received")
         try {
             val dto = gson.fromJson(payload, StoreProfileDTO::class.java)

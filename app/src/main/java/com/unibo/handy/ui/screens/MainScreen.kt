@@ -77,7 +77,7 @@ fun MainScreen(
                 NavBarItem(0, "Home", Icons.Default.Home, selectedTab) { selectedTab = 0 }
                 NavBarItem(1, "Attività", Icons.AutoMirrored.Filled.List, selectedTab) { selectedTab = 1 }
                 NavBarItem(2, "Chat", Icons.Default.Sms, selectedTab) { selectedTab = 2 }
-                NavBarItem(3, "Profilo", Icons.Default.Person, selectedTab) {}
+                NavBarItem(3, "Profilo", Icons.Default.Person, selectedTab) { selectedTab = 3 }
             }
         }
     ) { innerPadding ->

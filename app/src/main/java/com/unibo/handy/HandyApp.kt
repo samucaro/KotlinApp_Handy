@@ -41,6 +41,14 @@ class HandyApp : Application() {
     }
 
     // --- 1. REPOSITORIES ---
+    val locationRepository by lazy {
+        LocationRepository(
+            locationClient = locationClient,
+            apiService = RetrofitClient.retrofitService,
+            userDao = db.userDao()
+        )
+    }
+
     val userRepository by lazy {
         UserRepository(
             userDao = db.userDao(),
@@ -64,14 +72,6 @@ class HandyApp : Application() {
             db.userDao(),
             db.matchDao(),
             webSocketManager
-        )
-    }
-
-    val locationRepository by lazy {
-        LocationRepository(
-            locationClient = locationClient,
-            apiService = RetrofitClient.retrofitService,
-            userDao = db.userDao()
         )
     }
 
@@ -101,7 +101,6 @@ class HandyApp : Application() {
     // Iniettiamo la mappa nel Dispatcher
     val realtimeDispatcher by lazy {
         MessageDispatcher(
-            webSocketManager = webSocketManager,
             handlers = messageHandlersMap
         )
     }

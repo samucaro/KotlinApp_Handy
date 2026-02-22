@@ -7,7 +7,9 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -15,13 +17,20 @@ import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
 
+// 3 STATI POSSIBILI DELLA RETE
+sealed interface NetworkStatus {
+    object Initializing : NetworkStatus  // Fase di Boot
+    object Connected : NetworkStatus     // Online
+    object Disconnected : NetworkStatus  // Offline dopo tentativo
+}
+
 class WebSocketManager(private val client: OkHttpClient) {
     private var webSocket: WebSocket? = null
     // Scope per gestire i tentativi di riconnessione, ogni tentativo prende un nuovo thread dal thread pool
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
-    // SharedFlow per broadcast dei messaggi al Dispatcher
-    // onBufferOverflow = DROP_OLDEST assicura che non si blocchi mai
+    private val _networkStatus = MutableStateFlow<NetworkStatus>(NetworkStatus.Initializing)
+    val networkStatus = _networkStatus.asStateFlow()
     private val _incomingMessages = MutableSharedFlow<String>(
         replay = 0,
         extraBufferCapacity = 10,
@@ -46,6 +55,9 @@ class WebSocketManager(private val client: OkHttpClient) {
 
         currentUserId = idUser
         isIntentionalClose = false
+
+        _networkStatus.value = NetworkStatus.Initializing
+        Log.d("HandyWS", "--- NUOVO TENTATIVO DI CONNESSIONE LANCIATO ---")
 
         val request = Request.Builder()
             .url("$WS_URL$idUser")
@@ -72,14 +84,28 @@ class WebSocketManager(private val client: OkHttpClient) {
         webSocket?.close(1000, "Logout/App Closed")
         webSocket = null
         currentUserId = null
+        _networkStatus.value = NetworkStatus.Disconnected
     }
 
-    fun isConnected(): Boolean = webSocket != null
+    fun resetAndReconnect() {
+        Log.w("HandyWS", "Manual resetting connection")
+        isIntentionalClose = false
+
+        // Se l'utente clicca il bottone manuale, forza lo stato Initializing
+        // per dargli un feedback visivo che sta provando
+        webSocket?.cancel()
+        webSocket = null
+
+        _networkStatus.value = NetworkStatus.Initializing
+
+        currentUserId?.let { connect(it) }
+    }
 
     // Inner class per pulizia del codice
     private inner class HandyWebSocketListener : WebSocketListener() {
         override fun onOpen(webSocket: WebSocket, response: Response) {
             Log.i("HandyWS", "--> CONNECTED TO SERVER")
+            _networkStatus.value = NetworkStatus.Connected
         }
 
         override fun onMessage(webSocket: WebSocket, text: String) {
@@ -89,7 +115,9 @@ class WebSocketManager(private val client: OkHttpClient) {
 
         override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
             Log.e("HandyWS", "Connection error: ${t.message}")
-            this@WebSocketManager.webSocket = null // Reset
+            this@WebSocketManager.webSocket = null
+
+            _networkStatus.value = NetworkStatus.Disconnected
 
             if (!isIntentionalClose) {
                 attemptReconnect()
@@ -99,6 +127,8 @@ class WebSocketManager(private val client: OkHttpClient) {
         override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
             Log.d("HandyWS", "Connection closed: $reason")
             this@WebSocketManager.webSocket = null
+
+            _networkStatus.value = NetworkStatus.Disconnected
 
             if (!isIntentionalClose) {
                 attemptReconnect()
@@ -114,7 +144,7 @@ class WebSocketManager(private val client: OkHttpClient) {
                 // Riprova ricorsivamente (ma in un nuovo thread grazie a launch)
                 // Impostare webSocket a null prima di chiamare connect non serve se gestito nei listener,
                 // ma per sicurezza  assicura che sia pulito
-                this@WebSocketManager.webSocket = null
+                webSocket = null
                 connect(currentUserId!!)
             }
         }

@@ -1,5 +1,6 @@
 package com.unibo.handy.ui.screens
 
+import android.util.Log
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -124,16 +125,19 @@ fun HomeContent(
             }
         }
 
+        Log.d("HandyNav", "isHelperMode: $isHelperMode")
         // Switch Principale (Modalità)
         ModeSwitchCard(
             isHelper = isHelperMode,
             onCheckedChange = { isChecked ->
                 if(!isChecked) {
+                    Log.d("HandyNav", "Switch OFF")
                     // L'utente accende lo switch:
                     // Passa "Generico" per attivare la UI di configurazione (HelperView)
                     // ma senza far partire ancora l'heartbeat reale
                     onToggleHelperMode(false, "Generico")
                 } else {
+                    Log.d("HandyNav", "Switch ON")
                     // L'utente spegne lo switch:
                     // Torna richiedente
                     onToggleHelperMode(true, "Generico")
@@ -143,7 +147,7 @@ fun HomeContent(
 
         Spacer(modifier = Modifier.height(24.dp))
 
-
+        Log.d("HandyNav", "isHelperMode: $isHelperMode")
         if (isHelperMode) {
             val userCategory = currentUser?.category ?: "Generico"
 
@@ -284,6 +288,10 @@ fun HelperView(
             ) {
                 Text("Ferma Servizio")
             }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Text("Si consiglia di entrare nell'app frequentemente per una ricerca più veloce")
         }
     }
 }

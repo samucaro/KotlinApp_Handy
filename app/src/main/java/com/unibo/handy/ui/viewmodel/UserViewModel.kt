@@ -6,6 +6,8 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.unibo.handy.HandyApp
+import com.unibo.handy.data.network.NetworkStatus
+import com.unibo.handy.data.network.WebSocketManager
 import com.unibo.handy.data.repository.UserRepository
 import com.unibo.handy.ui.UserUiState
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -15,10 +17,13 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 class UserViewModel(
-    private val userRepository: UserRepository
+    private val userRepository: UserRepository,
+    private val webSocketManager: WebSocketManager
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(UserUiState())
     val uiState = _uiState.asStateFlow()
+
+    val networkStatus = webSocketManager.networkStatus
 
     init {
         // Osserva i cambiamenti dell'utente dal DB
@@ -85,11 +90,20 @@ class UserViewModel(
         }
     }
 
+    fun retryConnection() {
+        viewModelScope.launch {
+            webSocketManager.resetAndReconnect()
+        }
+    }
+
     companion object {
         val Factory: ViewModelProvider.Factory = viewModelFactory {
             initializer {
                 val app = (this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY] as HandyApp)
-                UserViewModel(app.userRepository)
+                UserViewModel(
+                    app.userRepository,
+                    app.webSocketManager
+                )
             }
         }
     }

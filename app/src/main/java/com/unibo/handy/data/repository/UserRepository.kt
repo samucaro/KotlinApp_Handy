@@ -4,6 +4,7 @@ import android.util.Log
 import com.unibo.handy.data.db.dao.UserDAO
 import com.unibo.handy.data.db.entity.UserEntity
 import com.unibo.handy.data.network.ServiceAPI
+import com.unibo.handy.data.network.dto.FcmTokenDTO
 import com.unibo.handy.data.network.dto.HelpRequestDTO
 import com.unibo.handy.data.network.dto.RegistrationDTO
 import com.unibo.handy.domain.PrivacyEngine
@@ -29,6 +30,8 @@ class UserRepository(
 ) {
     // Il Flow permette la reattività istantane a modifiche nel DB locale
     val currentUserFlow: Flow<UserEntity?> = userDao.getUserFlow()
+    // Variabile in memoria per tenere traccia dell'ultimo token ricevuto da Firebase
+    private var latestFcmToken: String? = null
 
     // Metodo di semplice registrazione/aggiornamento nel sistema (profile_update_request, interazione con VM)
     suspend fun updateUserProfile(username: String, email: String, psw: String) {
@@ -79,13 +82,38 @@ class UserRepository(
         registerOnServer(user.userId, category, isActive)
     }
 
+    /**
+     * Viene chiamato dal HandyFcmService quando Firebase genera un nuovo Token.
+     * Salva il token e lo invia subito al server se l'utente è loggato.
+     */
+    suspend fun updateFcmToken(token: String) = withContext(Dispatchers.IO) {
+        Log.i("UserRepo", "Aggiornamento FCM Token: $token")
+        latestFcmToken = token
+
+        val user = userDao.getUserSnapshot()
+        if (user != null) {
+            try {
+                // Notifichiamo il server del nuovo token
+                val response = apiService.updateFcmToken(FcmTokenDTO(user.userId, token))
+                if (response.isSuccessful) {
+                    Log.d("UserRepo", "FCM Token sincronizzato col server")
+                } else {
+                    Log.e("UserRepo", "Errore server sync FCM Token: ${response.code()}")
+                }
+            } catch (e: Exception) {
+                Log.e("UserRepo", "Errore di rete sync FCM Token", e)
+            }
+        }
+    }
+
     // Canale di comunicazione con il server tramite Retrofit REST
     private suspend fun registerOnServer(userId: String, category: String, isHelper: Boolean) {
         try {
             val dto = RegistrationDTO(
                 clientId = userId,
                 category = category,
-                isHelper = isHelper
+                isHelper = isHelper,
+                fcmToken = latestFcmToken
             )
 
             // Utilizzando Retrofit qui c'è il cambio di thread da Dispatchers.IO
