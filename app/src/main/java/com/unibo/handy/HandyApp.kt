@@ -3,6 +3,8 @@ package com.unibo.handy
 import android.app.Application
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import androidx.hilt.work.HiltWorkerFactory
+import androidx.work.Configuration
 import com.google.gson.Gson
 import com.unibo.handy.data.db.HandyDB
 import com.unibo.handy.data.repository.UserRepository
@@ -19,9 +21,14 @@ import com.unibo.handy.data.repository.strategy.ChatMessageStrategy
 import com.unibo.handy.data.repository.strategy.ComputeMatchStrategy
 import com.unibo.handy.data.repository.strategy.StoreProfileStrategy
 import com.unibo.handy.domain.MatchingService
+import dagger.hilt.android.HiltAndroidApp
+import javax.inject.Inject
 
+@HiltAndroidApp
+class HandyApp : Application(), Configuration.Provider {
+    @Inject
+    lateinit var workerFactory: HiltWorkerFactory
 
-class HandyApp : Application() {
     // PATTERN SINGLETON: Permette al Service di accedere ai Repository
     companion object {
         // ID del canale per la notifica persistente
@@ -29,6 +36,33 @@ class HandyApp : Application() {
         const val CHANNEL_NAME = "Handy Background Service"
     }
 
+    override fun onCreate() {
+        super.onCreate()
+        // Crea il canale di notifica
+        createNotificationChannel()
+    }
+
+    // Funzione di utilità per configurare il canale delle notifiche
+    private fun createNotificationChannel() {
+        val channel = NotificationChannel(
+            CHANNEL_ID,
+            CHANNEL_NAME,
+            NotificationManager.IMPORTANCE_LOW
+        ).apply {
+            description = "Mantains service running in background"
+        }
+
+        val manager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
+        manager.createNotificationChannel(channel)
+    }
+
+    // Configura il WorkManager per usare Hilt
+    override val workManagerConfiguration: Configuration
+        get() = Configuration.Builder()
+            .setWorkerFactory(workerFactory)
+            .build()
+
+    /*
     val gson = Gson()
 
     // Valutare utilizzo di Hilt per injectare le dipendenze
@@ -114,25 +148,5 @@ class HandyApp : Application() {
         MessageDispatcher(
             handlers = messageHandlersMap
         )
-    }
-
-    override fun onCreate() {
-        super.onCreate()
-        // Crea il canale di notifica
-        createNotificationChannel()
-    }
-
-    // Funzione di utilità per configurare il canale delle notifiche
-    private fun createNotificationChannel() {
-        val channel = NotificationChannel(
-            CHANNEL_ID,
-            CHANNEL_NAME,
-            NotificationManager.IMPORTANCE_LOW
-        ).apply {
-            description = "Mantains service running in background"
-        }
-
-        val manager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
-        manager.createNotificationChannel(channel)
-    }
+    }*/
 }

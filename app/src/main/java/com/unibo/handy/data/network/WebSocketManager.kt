@@ -16,6 +16,7 @@ import okhttp3.Request
 import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
+import kotlin.math.pow
 
 // 3 STATI POSSIBILI DELLA RETE
 sealed interface NetworkStatus {
@@ -25,7 +26,9 @@ sealed interface NetworkStatus {
 }
 
 class WebSocketManager(private val client: OkHttpClient) {
+    private var reconnectAttemptCount = 0
     private var webSocket: WebSocket? = null
+    private var reconnectJob: kotlinx.coroutines.Job? = null
     // Scope per gestire i tentativi di riconnessione, ogni tentativo prende un nuovo thread dal thread pool
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
@@ -91,6 +94,11 @@ class WebSocketManager(private val client: OkHttpClient) {
         Log.w("HandyWS", "Manual resetting connection")
         isIntentionalClose = false
 
+        // 1. CANCELLA l'eventuale riconnessione automatica in attesa
+        reconnectJob?.cancel()
+        // 2. AZZERA il contatore per la demo, così riparte subito senza aspettare minuti
+        reconnectAttemptCount = 0
+
         // Se l'utente clicca il bottone manuale, forza lo stato Initializing
         // per dargli un feedback visivo che sta provando
         webSocket?.cancel()
@@ -104,6 +112,7 @@ class WebSocketManager(private val client: OkHttpClient) {
     // Inner class per pulizia del codice
     private inner class HandyWebSocketListener : WebSocketListener() {
         override fun onOpen(webSocket: WebSocket, response: Response) {
+            reconnectAttemptCount = 0
             Log.i("HandyWS", "--> CONNECTED TO SERVER")
             _networkStatus.value = NetworkStatus.Connected
         }
@@ -137,10 +146,23 @@ class WebSocketManager(private val client: OkHttpClient) {
     }
 
     private fun attemptReconnect() {
-        scope.launch {
+        if (isIntentionalClose || currentUserId == null) return
+
+        // Backoff esponenziale: 3s, 6s, 12s, 24s... massimo 1 minuto
+        val backoffDelay = (3000L * 2.0.pow(reconnectAttemptCount.toDouble())).toLong()
+            .coerceAtMost(60000L) // Cap a 60 secondi
+
+        reconnectAttemptCount++
+        Log.w("HandyWS", "Reconnection try ${backoffDelay/1000}s (Tentative: $reconnectAttemptCount)")
+
+        // Cancella eventuali job precedenti per sicurezza
+        reconnectJob?.cancel()
+
+        reconnectJob = scope.launch {
             Log.w("HandyWS", "Riconnection attempt...")
-            delay(3000)
+            delay(backoffDelay)
             if (!isIntentionalClose && currentUserId != null) {
+                webSocket?.cancel()
                 // Riprova ricorsivamente (ma in un nuovo thread grazie a launch)
                 // Impostare webSocket a null prima di chiamare connect non serve se gestito nei listener,
                 // ma per sicurezza  assicura che sia pulito

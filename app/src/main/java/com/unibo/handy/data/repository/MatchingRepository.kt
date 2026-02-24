@@ -16,6 +16,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.withContext
+import javax.inject.Inject
 
 /**
  * Repository centrale per il protocollo SamaritanCloud.
@@ -23,7 +24,7 @@ import kotlinx.coroutines.withContext
  * 1. Ruolo Richiedente: Invio Help-Request (Beta+).
  * 2. Ruolo Service Client: Custodia profili offuscati e Calcolo Match
  */
-class MatchingRepository(
+class MatchingRepository @Inject constructor(
     private val webSocketManager: WebSocketManager,
     private val matchDao: MatchDAO,
     private val storedClientDao: StoredClientDAO,

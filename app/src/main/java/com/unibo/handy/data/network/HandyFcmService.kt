@@ -3,14 +3,21 @@ package com.unibo.handy.data.network
 import android.util.Log
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
-import com.unibo.handy.HandyApp
+import com.unibo.handy.data.repository.UserRepository
+import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
+@AndroidEntryPoint
 class HandyFcmService : FirebaseMessagingService() {
     private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+
+    @Inject lateinit var dispatcher: MessageDispatcher
+    @Inject lateinit var userRepository: UserRepository
 
     override fun onMessageReceived(remoteMessage: RemoteMessage) {
         super.onMessageReceived(remoteMessage)
@@ -24,9 +31,8 @@ class HandyFcmService : FirebaseMessagingService() {
 
             if (action != null && payload != null) {
                 // Deleghiamo l'elaborazione al Dispatcher centralizzato
-                val app = applicationContext as HandyApp
                 serviceScope.launch {
-                    app.realtimeDispatcher.dispatch(action, payload)
+                    dispatcher.dispatch(action, payload)
                 }
             } else {
                 Log.w("HandyFCM", "Payload o Action mancante nel messaggio FCM")
@@ -40,14 +46,19 @@ class HandyFcmService : FirebaseMessagingService() {
 
         // FONDAMENTALE: Inviare questo token al tuo server backend
         // In questo modo il server sa a chi instradare le Help-Request.
-        val app = applicationContext as HandyApp
         serviceScope.launch {
             try {
                 // Presuppone che tu aggiunga un metodo updateFcmToken nel UserRepository
-                app.userRepository.updateFcmToken(token)
+                userRepository.updateFcmToken(token)
             } catch (e: Exception) {
                 Log.e("HandyFCM", "Errore nell'aggiornamento del token", e)
             }
         }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        // Cancella tutte le coroutine attive quando il sistema uccide il servizio
+        serviceScope.cancel()
     }
 }

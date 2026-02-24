@@ -1,9 +1,9 @@
 package com.unibo.handy.ui
 
-import com.unibo.handy.data.db.entity.UserEntity
+import com.unibo.handy.domain.model.User
 
 data class MatchUiState(
-    val currentUser: UserEntity? = null,
+    val currentUser: User? = null,
     val isHelperMode: Boolean = false,
     // Parametri per la ricerca
     val selectedCategory: String = "Generico",

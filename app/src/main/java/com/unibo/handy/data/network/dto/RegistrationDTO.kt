@@ -6,5 +6,6 @@ data class RegistrationDTO(
     @SerializedName("clientId") val clientId: String,
     @SerializedName("category") val category: String,
     @SerializedName("isHelper") val isHelper: Boolean,
-    @SerializedName("fcmToken") val fcmToken: String? = null
+    @SerializedName("fcmToken") val fcmToken: String? = null,
+    @SerializedName("publicModulus") val publicModulus: String? = null
 )

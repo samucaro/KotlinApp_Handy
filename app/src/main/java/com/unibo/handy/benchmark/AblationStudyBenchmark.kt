@@ -1,6 +1,7 @@
 package com.unibo.handy.benchmark
 
 import android.util.Log
+import com.unibo.handy.domain.PaillierEncryption
 import java.math.BigInteger
 import kotlin.system.measureTimeMillis
 
@@ -21,10 +22,10 @@ object AblationStudyBenchmark {
     private val plainTextLocationB = BigInteger.valueOf(4189100)
 
     // Setup Paillier
-    private val keys = Pailler.keygen()
+    private val keys = PaillierEncryption.keygen()
     private val pubKey = keys.first
     private val privKey = keys.second
-    private val P = BigInteger.probablePrime(256, Pailler.RANDOM_GENERATOR) // Modulo per il Blur
+    private val P = BigInteger.probablePrime(256, PaillierEncryption.RANDOM_GENERATOR) // Modulo per il Blur
 
     fun runFullStudy(): List<BenchmarkResult> {
         Log.i(TAG, "--- INIZIO ABLATION STUDY ---")
@@ -45,7 +46,7 @@ object AblationStudyBenchmark {
         Log.d(TAG, "JVM Warm-up in corso...")
         for (i in 1..50) {
             val a = plainTextLocationA * plainTextLocationB
-            Pailler.encrypt(plainTextLocationA, pubKey)
+            PaillierEncryption.encrypt(plainTextLocationA, pubKey)
         }
     }
 
@@ -112,20 +113,20 @@ object AblationStudyBenchmark {
 
         for (i in 1..ITERATIONS) {
             val time = measureTimeMillis {
-                val encA = Pailler.encrypt(plainTextLocationA, pubKey)
-                val encB = Pailler.encrypt(plainTextLocationB, pubKey)
+                val encA = PaillierEncryption.encrypt(plainTextLocationA, pubKey)
+                val encB = PaillierEncryption.encrypt(plainTextLocationB, pubKey)
 
                 // Addizione omomorfica: E(A) * E(B) mod n^2
                 val nSquared = pubKey * pubKey
                 val encSum = (encA * encB).mod(nSquared)
 
                 // Decrittazione da parte del worker
-                val decSum = Pailler.decrypt(encSum, pubKey, privKey)
+                val decSum = PaillierEncryption.decrypt(encSum, pubKey, privKey)
             }
             totalTime += time
 
             if(i == 1) {
-                val encA = Pailler.encrypt(plainTextLocationA, pubKey)
+                val encA = PaillierEncryption.encrypt(plainTextLocationA, pubKey)
                 payloadSize = encA.toByteArray().size * 2 // Cifrati pesanti!
             }
         }

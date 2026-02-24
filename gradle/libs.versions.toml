@@ -1,6 +1,10 @@
 [versions]
 agp = "9.0.1"
 coreKtx = "1.17.0"
+hiltAndroid = "2.59.2"
+hiltCompiler = "1.3.0"
+hiltNavigationCompose = "1.3.0"
+hiltWork = "1.3.0"
 junit = "4.13.2"
 junitVersion = "1.3.0"
 espressoCore = "3.7.0"
@@ -49,11 +53,17 @@ androidx-compose-ui-test-junit4 = { group = "androidx.compose.ui", name = "ui-te
 androidx-compose-material3 = { group = "androidx.compose.material3", name = "material3" }
 material-icons-extended = { module = "androidx.compose.material:material-icons-extended", version.ref = "material" }
 
+# HILT
+androidx-hilt-navigation-compose = { module = "androidx.hilt:hilt-navigation-compose", version.ref = "hiltNavigationCompose" }
+hilt-android = { module = "com.google.dagger:hilt-android", version.ref = "hiltAndroid" }
+hilt-android-compiler = { module = "com.google.dagger:hilt-android-compiler", version.ref = "hiltAndroid" }
+androidx-hilt-compiler = { module = "androidx.hilt:hilt-compiler", version.ref = "hiltCompiler" }
+androidx-hilt-work = { module = "androidx.hilt:hilt-work", version.ref = "hiltWork" }
+
 # FIREBASE
 firebase-bom = { module = "com.google.firebase:firebase-bom", version.ref = "firebasebom" }
 firebase-messaging-ktx = { module = "com.google.firebase:firebase-messaging", version.ref = "firebasemessage" }
 firebase-analytics = { module = "com.google.firebase:firebase-analytics", version.ref = "firebaseanalytics" }
-
 
 # WORK MANAGER
 androidx-work-runtime-ktx = { module = "androidx.work:work-runtime-ktx", version.ref = "workManager" }

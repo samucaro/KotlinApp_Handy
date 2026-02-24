@@ -11,6 +11,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.platform.LocalContext
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.unibo.handy.ui.viewmodel.AuthState.LOGGED_IN
 import com.unibo.handy.ui.viewmodel.AuthState.NOT_LOGGED
 import com.unibo.handy.ui.viewmodel.AuthState.LOADING
@@ -46,7 +47,7 @@ sealed class Screen(val route: String) {
 fun HandyAppEntry() {
     val navController = rememberNavController()
 
-    val userVM: UserViewModel = viewModel(factory = UserViewModel.Factory)
+    val userVM: UserViewModel = hiltViewModel()
     val netStatus by userVM.networkStatus.collectAsState()
 
     // --- LOGICA DI BLOCCO ---
@@ -65,7 +66,7 @@ fun HandyAppEntry() {
             ) {
                 // --- ROTTA 1: SPLASH SCREEN ---
                 composable(Screen.Splash.route) {
-                    val authVM: AuthViewModel = viewModel(factory = AuthViewModel.Factory)
+                    val authVM: AuthViewModel = hiltViewModel()
                     val authState by authVM.authState.collectAsState()
 
                     //Naviga appena lo stato cambia
@@ -93,7 +94,7 @@ fun HandyAppEntry() {
                 // ROTTA 2: Schermata di Signup
                 composable(Screen.SignUp.route) {
                     // Inietto AuthViewModel
-                    val authVM: AuthViewModel = viewModel(factory = AuthViewModel.Factory)
+                    val authVM: AuthViewModel = hiltViewModel()
                     val state by authVM.uiState.collectAsState()
 
                     // Controllo navigazione
@@ -117,9 +118,9 @@ fun HandyAppEntry() {
                 // ROTTA 3: DASHBOARD
                 composable(Screen.Home.route) {
                     // Inietto ViewModel
-                    val userVM: UserViewModel = viewModel(factory = UserViewModel.Factory)
+                    val userVM: UserViewModel = hiltViewModel()
                     val userState by userVM.uiState.collectAsState()
-                    val matchVM: MatchViewModel = viewModel(factory = MatchViewModel.Factory)
+                    val matchVM: MatchViewModel = hiltViewModel()
                     val matchState by matchVM.uiState.collectAsState()
                     val pendingMatches by matchVM.pendingMatches.collectAsState()
                     val activeChats by matchVM.activeChats.collectAsState()
@@ -173,10 +174,10 @@ fun HandyAppEntry() {
 
                 // ROTTA 4: DETTAGLIO CHAT
                 composable(Screen.ChatDetail.route) { backStackEntry ->
-                    val matchId =
-                        backStackEntry.arguments?.getString("matchId") ?: return@composable
-                    // Inietto ChatViewModel
-                    val chatVM: ChatViewModel = viewModel(factory = ChatViewModel.Factory)
+                    val matchId = backStackEntry.arguments?.getString("matchId") ?: return@composable
+                    val chatVM: ChatViewModel = hiltViewModel()
+                    val userVM: UserViewModel = hiltViewModel()
+                    val userState by userVM.uiState.collectAsState()
 
                     // Carica i messaggi per questo ID specifico
                     LaunchedEffect(matchId) {
@@ -186,6 +187,7 @@ fun HandyAppEntry() {
                     SingleChatScreen(
                         viewModel = chatVM,
                         matchId = matchId,
+                        myUserId = userState.currentUser?.userId ?: "",
                         onBack = { navController.popBackStack() }
                     )
                 }

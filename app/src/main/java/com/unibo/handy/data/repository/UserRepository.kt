@@ -7,11 +7,14 @@ import com.unibo.handy.data.network.ServiceAPI
 import com.unibo.handy.data.network.dto.FcmTokenDTO
 import com.unibo.handy.data.network.dto.HelpRequestDTO
 import com.unibo.handy.data.network.dto.RegistrationDTO
+import com.unibo.handy.domain.PaillierEncryption
 import com.unibo.handy.domain.PrivacyEngine
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withContext
+import java.math.BigInteger
 import java.util.UUID
+import javax.inject.Inject
 
 /**
  * Repository responsabile della gestione dell'identità dell'utente corrente.
@@ -20,20 +23,22 @@ import java.util.UUID
  * 2. Stato "Helper" (Attivo/Non Attivo)
  * 3. Sincronizzazione del profilo con il server via HTTP (Registrazione).
  */
-class UserRepository(
+class UserRepository @Inject constructor(
     // Dati DB
     private val userDao: UserDAO,
     // Dati di rete
     private val apiService: ServiceAPI,
     // Gestore di posizione
-    private val locationRepo: LocationRepository
+    private val locationRepo: LocationRepository,
+    // Gestore cifratura
+    private val secureKeyRepository: SecureKeyRepository
 ) {
     // Il Flow permette la reattività istantane a modifiche nel DB locale
     val currentUserFlow: Flow<UserEntity?> = userDao.getUserFlow()
     // Variabile in memoria per tenere traccia dell'ultimo token ricevuto da Firebase
     private var latestFcmToken: String? = null
 
-    // Metodo di semplice registrazione/aggiornamento nel sistema (profile_update_request, interazione con VM)
+    // Metodo di registrazione/aggiornamento nel sistema (profile_update_request, interazione con VM)
     suspend fun updateUserProfile(username: String, email: String, psw: String) {
         Log.i("UserRepo", "Updating profile: $username")
 
@@ -55,7 +60,7 @@ class UserRepository(
         try {
             // Registra/Aggiorna il profilo nel server al quale servono solo 3 dei 7 campi
             registerOnServer(userId, "Generico", isHelper)
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             Log.e("UserRepo", "Server unreachable: cannot register user.")
             throw Exception("Server non disponibile: impossibile registrarsi.")
         }
@@ -87,21 +92,21 @@ class UserRepository(
      * Salva il token e lo invia subito al server se l'utente è loggato.
      */
     suspend fun updateFcmToken(token: String) = withContext(Dispatchers.IO) {
-        Log.i("UserRepo", "Aggiornamento FCM Token: $token")
+        Log.i("UserRepo", "Update FCM Token: $token")
         latestFcmToken = token
 
         val user = userDao.getUserSnapshot()
         if (user != null) {
             try {
-                // Notifichiamo il server del nuovo token
+                // Notifica il server del nuovo token
                 val response = apiService.updateFcmToken(FcmTokenDTO(user.userId, token))
                 if (response.isSuccessful) {
-                    Log.d("UserRepo", "FCM Token sincronizzato col server")
+                    Log.d("UserRepo", "FCM Token sync successfully")
                 } else {
-                    Log.e("UserRepo", "Errore server sync FCM Token: ${response.code()}")
+                    Log.e("UserRepo", "Error updating FCM Token: ${response.code()}")
                 }
             } catch (e: Exception) {
-                Log.e("UserRepo", "Errore di rete sync FCM Token", e)
+                Log.e("UserRepo", "Network error sync FCM Token", e)
             }
         }
     }
@@ -109,11 +114,13 @@ class UserRepository(
     // Canale di comunicazione con il server tramite Retrofit REST
     private suspend fun registerOnServer(userId: String, category: String, isHelper: Boolean) {
         try {
+            val modulus = secureKeyRepository.getPublicModulus()
             val dto = RegistrationDTO(
                 clientId = userId,
                 category = category,
                 isHelper = isHelper,
-                fcmToken = latestFcmToken
+                fcmToken = latestFcmToken,
+                publicModulus = modulus?.toString() // serve al server
             )
 
             // Utilizzando Retrofit qui c'è il cambio di thread da Dispatchers.IO
@@ -127,6 +134,7 @@ class UserRepository(
             }
         } catch (e: Exception) {
             Log.e("UserRepository", "Registration error", e)
+            throw Exception("Server unreachable. Check your connection and try again.")
         }
     }
 
@@ -144,22 +152,32 @@ class UserRepository(
 
         Log.i("MatchingRepo", "HelpRequest sent for Category: $category, Tol: $tolerance")
 
-        // 2. BLURRING
+        // 2. Recupero Modulo Pubblico
+        val modulus = secureKeyRepository.getPublicModulus() ?: return
+
+        // 3. BLURRING
         val blurredData = PrivacyEngine.createHelpRequest(
             lat = location.latitude,
             lon = location.longitude,
             tol = tolerance
         )
 
+        // 4. Cifratura di r e della Tolleranza
+        val rawNoise = BigInteger.valueOf(blurredData.encryptedR)
+        val rawTol = BigInteger.valueOf(blurredData.encryptedTol)
+        val cipherBlur = PaillierEncryption.encrypt(rawNoise, modulus)
+        val cipherTol = PaillierEncryption.encrypt(rawTol, modulus)
+
         try {
-            // 3. CREAZIONE DTO
+            // 4. CREAZIONE DTO
             val dto = HelpRequestDTO(
                 clientId = userId,
                 category = category,
                 blurredX = blurredData.betaPlusX,
                 blurredY = blurredData.betaPlusY,
-                encryptedR = blurredData.encryptedR, //Da cifrare con Paillier
-                encryptedTol = blurredData.encryptedTol //Da cifrare con Paillier
+                encryptedR = cipherBlur.toString(),
+                encryptedTol = cipherTol.toString(),
+                publicModulus = modulus.toString() // serve al server
             )
 
             // 4. INVIO AL SERVER
@@ -168,12 +186,14 @@ class UserRepository(
             val response = apiService.sendHelpRequest(dto)
 
             if (response.isSuccessful) {
-                Log.i("MatchingRepo", "HelpRequest success (200 OK). Request recieve by server")
+                Log.i("MatchingRepo", "HelpRequest success (200 OK). Request receive by server")
             } else {
                 Log.e("MatchingRepo", "HelpRequest server error: ${response.code()}")
+                throw Exception("Server Error: ${response.code()}")
             }
         } catch (e: Exception) {
             Log.e("MatchingRepo", "HelpRequest network error", e)
+            throw Exception("Server unreachable. Check your connection and try again.")
         }
     }
 

@@ -6,15 +6,18 @@ import android.location.Location
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 import com.google.android.gms.location.CurrentLocationRequest
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.tasks.await
-import kotlinx.coroutines.time.withTimeoutOrNull
 import kotlinx.coroutines.withTimeoutOrNull
+import javax.inject.Inject
 
 /*
  * Classe intermediaria per ottenere la posizione dell'utente dai sensori dello smartphone tramite
  * FusedLocationProviderClient (Play Services)
  */
-class LocationClientSensor(context: Context) {
+class LocationClientSensor @Inject constructor(
+    @ApplicationContext private val context: Context
+) {
     // qui sotto al cofano, sfruttando questa API (FusedLocationProviderClient), viene fatta una
     // chiamata alla HAL di Android per ottenere la posizione dell'utente
     private val fusedLocationClient = LocationServices.getFusedLocationProviderClient(context)

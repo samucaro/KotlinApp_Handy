@@ -31,7 +31,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.unibo.handy.data.db.entity.UserEntity
+import com.unibo.handy.domain.model.User
 import com.unibo.handy.ui.components.CategoryChip
 import com.unibo.handy.ui.MatchUiState
 import com.unibo.handy.ui.components.ModeSwitchCard
@@ -42,7 +42,7 @@ import com.unibo.handy.ui.theme.HandySecondary
 // Wrapper Stateful
 @Composable
 fun HomeScreen(
-    currentUser: UserEntity?,
+    currentUser: User?,
     isHelperMode: Boolean,
     matchState: MatchUiState,
     selectedCategory: String,
@@ -69,7 +69,15 @@ fun HomeScreen(
         onRadiusChange = { newRad ->
             onSearchParamUpdate(selectedCategory, newRad)
         },
-        onSendHelpRequest = { onRequestHelp(selectedCategory, searchRadius.toDouble()) },
+        onSendHelpRequest = {
+            // --- CONVERSIONE GEOSPAZIALE ---
+            val toleranceInDegrees = searchRadius / 111.32
+            val toleranceFixedPoint = toleranceInDegrees * 10_000_000.0
+
+            Log.d("HandyGeo", "Km: $searchRadius -> FixedPoint: $toleranceFixedPoint")
+
+            onRequestHelp(selectedCategory, toleranceFixedPoint)
+        },
         onAcceptMatch = onAcceptMatch,
         helperDraftCategory = helperDraftCategory,
         onHelperDraftChange = onHelperDraftChange
@@ -78,7 +86,7 @@ fun HomeScreen(
 // Content Stateless (Solo UI)
 @Composable
 fun HomeContent(
-    currentUser: UserEntity?,
+    currentUser: User?,
     isHelperMode: Boolean,
     matchState: MatchUiState,
     selectedCategory: String,
@@ -345,7 +353,7 @@ fun RequesterView(
             onClick = onSearchClick,
             colors = ButtonDefaults.buttonColors(containerColor = HandySecondary),
             modifier = Modifier.fillMaxWidth().height(56.dp),
-            shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)
+            shape = RoundedCornerShape(12.dp)
         ) {
             Icon(Icons.Default.Search, contentDescription = null)
             Spacer(modifier = Modifier.width(8.dp))

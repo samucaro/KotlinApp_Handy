@@ -14,10 +14,10 @@ import androidx.work.WorkManager
 import com.google.gson.JsonParser
 import com.unibo.handy.data.network.HeartbeatWorker
 import com.unibo.handy.data.network.MessageDispatcher
-import com.unibo.handy.data.network.NetworkStatus
 import com.unibo.handy.data.network.WebSocketManager
 import com.unibo.handy.data.repository.LocationRepository
 import com.unibo.handy.data.repository.UserRepository
+import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -28,7 +28,9 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.util.concurrent.TimeUnit
+import javax.inject.Inject
 
+@AndroidEntryPoint
 // Funge da pattern FACADE
 class NetworkService : Service() {
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
@@ -36,21 +38,10 @@ class NetworkService : Service() {
     private var backgroundJob: Job? = null
 
     // Dipendenze
-    private lateinit var userRepo: UserRepository
-    private lateinit var locationRepo: LocationRepository
-    private lateinit var dispatcher: MessageDispatcher
-    private lateinit var webSocketManager: WebSocketManager
-
-    override fun onCreate() {
-        super.onCreate()
-        val app = applicationContext as HandyApp
-
-        // INIEZIONE DIPENDENZE
-        userRepo = app.userRepository
-        locationRepo = app.locationRepository
-        dispatcher = app.realtimeDispatcher
-        webSocketManager = app.webSocketManager
-    }
+    @Inject lateinit var userRepo: UserRepository
+    @Inject lateinit var locationRepo: LocationRepository
+    @Inject lateinit var dispatcher: MessageDispatcher
+    @Inject lateinit var webSocketManager: WebSocketManager
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         Log.i("HandyService", "Service Started")
@@ -89,7 +80,7 @@ class NetworkService : Service() {
                 // CASO LOGOUT
                 if (user == null) {
                     Log.d("HandyService", "Logout: Stop dispatcher and colse socket")
-                    dispatcher.stopDispatching()
+                    //dispatcher.stopDispatching()
                     webSocketManager.close()
                     WorkManager.getInstance(applicationContext).cancelUniqueWork("HeartbeatWork")
                     return@collectLatest
@@ -172,7 +163,7 @@ class NetworkService : Service() {
 
     override fun onDestroy() {
         Log.w("HandyService", "Service Destroyed")
-        dispatcher.stopDispatching()
+        //dispatcher.stopDispatching()
         scope.cancel()
         webSocketManager.close()
         WorkManager.getInstance(applicationContext).cancelUniqueWork("HeartbeatWork")

@@ -1,81 +1,59 @@
-import requests
+import sys
 import json
-import random
-import uuid
-import time
+import asyncio
+import requests
+import websockets
+from crypto_utils import PUB_N
 
-# --- CONFIGURAZIONE ---
-SERVER_URL = "http://127.0.0.1:8000"
-# Posizione vicina al Requester (circa 20m)
-HELPER_LAT = 44.49381
-HELPER_LON = 11.34304
+SERVER_URL_HTTP = "http://127.0.0.1:8000"
+SERVER_URL_WS = "ws://127.0.0.1:8000/ws"
 
-P = 999999937
-PRECISION = 10_000_000.0
-
-def to_fixed_point(val):
-    return int(val * PRECISION)
-
-def generate_noise():
-    return random.randint(1, P - 1)
-
-def mod_sub(a, b):
-    res = (a % P) - (b % P)
-    return res + P if res < 0 else res
-
-def main():
-    print(f"--- AVVIO SIMULATORE HELPER ---")
+async def run_python_helper(client_id: str, will_match: bool):
+    print(f"--- AVVIO PYTHON HELPER: {client_id} ---")
+    print(f"Comportamento simulato: {'MATCH POSITIVO' if will_match else 'MATCH NEGATIVO (Fuori raggio)'}")
     
-    client_id = "5ce95ea5-6ce0-44a5-a627-9574fee1ceb5"#str(uuid.uuid4())
-    category = "Idraulico" # Deve combaciare con la ricerca Android
-    print(f"Helper ID: {client_id} [{category}]")
-
-    # 1. Registrazione come HELPER (isHelper=True)
-    reg_payload = {
+    # 1. Registrazione con un token fittizio per far capire al server che siamo Python
+    reg_data = {
         "clientId": client_id,
-        "category": category,
-        "isHelper": True
+        "category": "Elettricista",
+        "isHelper": True,
+        "fcmToken": "PYTHON_NO_FCM", # Flag per il server
+        "publicModulus": str(PUB_N)
     }
-    
-    try:
-        r = requests.post(f"{SERVER_URL}/register_profile", json=reg_payload)
-        if r.status_code == 200:
-            print("Helper registrato nel Server!")
-        else:
-            print(f"Errore reg: {r.status_code}")
-            return
-    except Exception as e:
-        print(f"Server down: {e}")
-        return
+    requests.post(f"{SERVER_URL_HTTP}/register_profile", json=reg_data)
 
-    # 2. Invio Heartbeat (Posizione Offuscata Beta Minus)
-    # Simuliamo che l'Helper sia fermo lì
-    pX = to_fixed_point(HELPER_LAT)
-    pY = to_fixed_point(HELPER_LON)
-    noise = generate_noise() # r
-
-    # Beta- = (Pos - r)
-    beta_minus_x = mod_sub(pX, noise)
-    beta_minus_y = mod_sub(pY, noise)
-
-    hb_payload = {
-        "clientId": client_id,
-        "blurredX": beta_minus_x,
-        "blurredY": beta_minus_y,
-        "encryptedBlur": noise # In chiaro per demo
-    }
-
-    print("Invio Heartbeat (Posizione disponibile)...")
-    try:
-        r = requests.post(f"{SERVER_URL}/heartbeat", json=hb_payload)
-        if r.status_code == 200:
-            print("Heartbeat ricevuto dal server. L'Helper è ora 'visibile'.")
-            print("ORA VAI SU ANDROID E FAI UNA RICERCA COME 'Richiedente'!")
-            print("   (Se cerchi 'Idraulico', il server dovrebbe trovare questo script come candidato)")
-        else:
-            print(f"Errore HB: {r.text}")
-    except Exception as e:
-        print(f"Errore invio HB: {e}")
+    # 2. Connessione al WebSocket
+    ws_url = f"{SERVER_URL_WS}/{client_id}"
+    async with websockets.connect(ws_url) as ws:
+        print("In attesa che l'App Android invii una Help-Request...")
+        while True:
+            msg = await ws.recv()
+            data = json.loads(msg)
+            
+            if data["type"] == "COMPUTE_MATCH":
+                payload = data["payload"]
+                requester = payload['t1_requesterId']
+                print(f"\n🚨 Ricevuta tupla cifrata dall'App Android (Requester: {requester})")
+                
+                # Invece di decifrare Paillier in Python (che è lento e non è lo scopo del test),
+                # forziamo l'esito del match in base al parametro di avvio dello script!
+                if will_match:
+                    print("✅ Esito: DISTANZA < TOLLERANZA. Invio conferma all'App Android!")
+                    match_confirm = {
+                        "type": "MATCH_FOUND",
+                        "payload": {
+                            "requester_id": requester,
+                            "target_id": client_id
+                        }
+                    }
+                    await ws.send(json.dumps(match_confirm))
+                else:
+                    print("❌ Esito: DISTANZA > TOLLERANZA. Scarto la richiesta (Nessun invio).")
 
 if __name__ == "__main__":
-    main()
+    # Parametri da terminale: python simula_helper.py [ID] [MATCH/NOMATCH]
+    cid = sys.argv[1] if len(sys.argv) > 1 else "PythonHelper_1"
+    behavior = sys.argv[2] if len(sys.argv) > 2 else "MATCH"
+    
+    will_match = (behavior.upper() == "MATCH")
+    asyncio.run(run_python_helper(cid, will_match))

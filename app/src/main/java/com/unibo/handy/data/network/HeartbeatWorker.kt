@@ -2,22 +2,24 @@ package com.unibo.handy.data.network
 
 import android.content.Context
 import android.util.Log
+import androidx.hilt.work.HiltWorker
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.unibo.handy.HandyApp
+import com.unibo.handy.data.repository.LocationRepository
+import dagger.assisted.Assisted
+import dagger.assisted.AssistedInject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-class HeartbeatWorker(
-    context: Context,
-    params: WorkerParameters
+@HiltWorker
+class HeartbeatWorker @AssistedInject constructor(
+    @Assisted context: Context,
+    @Assisted params: WorkerParameters,
+    private val locationRepo: LocationRepository
 ) : CoroutineWorker(context, params) {
     override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
         Log.i("HeartbeatWorker", "Periodic execution heartbeat started")
-
-        // Accede al repository tramite il singleton dell'Application
-        val app = applicationContext as HandyApp
-        val locationRepo = app.locationRepository
 
         return@withContext try {
             // sendHeartbeat() fa già il controllo su userDao.getUserSnapshot()

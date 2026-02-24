@@ -16,7 +16,9 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import com.unibo.handy.ui.navigation.HandyAppEntry
 import com.unibo.handy.ui.theme.HandyTheme
+import dagger.hilt.android.AndroidEntryPoint
 
+@AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     // DEFINIZIONE DEL CALLBACK PER I PERMESSI
     private val requestPermissionLauncher = registerForActivityResult(

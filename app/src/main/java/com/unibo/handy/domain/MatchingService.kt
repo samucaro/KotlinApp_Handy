@@ -4,8 +4,9 @@ import android.util.Log
 import com.unibo.handy.data.db.dao.StoredClientDAO
 import com.unibo.handy.data.network.dto.TuplaDTO
 import java.math.BigInteger
+import javax.inject.Inject
 
-class MatchingService(
+class MatchingService @Inject constructor(
     private val storedClientDao: StoredClientDAO
 ) {
     suspend fun verifyMatch(tupla: TuplaDTO, privateKey: BigInteger, modulus: BigInteger): Boolean {

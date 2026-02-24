@@ -7,6 +7,7 @@ data class HelpRequestDTO(
     @SerializedName("category") val category: String,
     @SerializedName("blurredX") val blurredX: Long,
     @SerializedName("blurredY") val blurredY: Long,
-    @SerializedName("encryptedR") val encryptedR: Long,
-    @SerializedName("encryptedTol") val encryptedTol: Long,
+    @SerializedName("encryptedR") val encryptedR: String,
+    @SerializedName("encryptedTol") val encryptedTol: String,
+    @SerializedName("publicModulus") val publicModulus: String
 )

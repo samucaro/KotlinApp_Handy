@@ -9,15 +9,12 @@ data class TuplaDTO(
     @SerializedName("t2_targetId") val t2TargetId: String,
     // T3: Beta+ X (Blur User + ServerSpecific + ServerGlobal)
     @SerializedName("t3_betaPlusX") val t3BetaPlusX: Long,
-    // T4: Beta+ Y
+    // T3: Beta+ Y
     @SerializedName("t4_betaPlusY") val t3BetaPlusY: Long,
-    // T5: Somma dei Blur Utenti (UserReq + UserTarget)
-    // In chiaro per ora (senza Paillier)
+    // T4: Somma dei Blur Utenti (UserReq + UserTarget)
     @SerializedName("t5_sumUserBlur") val t4SumUserBlur: String,
-    // T6: Somma dei Blur Server Specifici (SrvReq + SrvTarget)
-    // In chiaro per ora
+    // T5: Somma dei Blur Server Specifici (SrvReq + SrvTarget)
     @SerializedName("t6_sumServerBlur") val t5SumServerBlur: Long,
-    // T7: Tolleranza (Raggio in metri o unità mappa)
-    // In chiaro per ora
+    // T6: Tolleranza (Raggio in metri o unità mappa)
     @SerializedName("t7_tolerance") val t6Tolerance: String
 )

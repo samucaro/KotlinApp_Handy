@@ -43,15 +43,30 @@ import com.unibo.handy.ui.viewmodel.ChatViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SingleChatScreen(viewModel: ChatViewModel, matchId: String, onBack: () -> Unit) {
+fun SingleChatScreen(
+    viewModel: ChatViewModel,
+    matchId: String,
+    myUserId: String,
+    onBack: () -> Unit
+) {
     // Recupera i messaggi specifici per questo matchId
     val messages by viewModel.messages.collectAsState()
     var inputText by remember { mutableStateOf("") }
+    // Variabile per tracciare se è il primo caricamento
+    var isInitialLoad by remember { mutableStateOf(true) }
     val listState = rememberLazyListState()
 
     // Scroll automatico in basso quando arriva un messaggio
     LaunchedEffect(messages.size) {
-        if (messages.isNotEmpty()) listState.animateScrollToItem(messages.size - 1)
+        if (messages.isNotEmpty()) {
+            if (isInitialLoad) {
+                // Primo caricamento: "teletrasporto" istantaneo all'ultimo messaggio senza scatti
+                listState.scrollToItem(messages.size - 1)
+            } else {
+                // Nuovi messaggi: animazione fluida (scroll)
+                listState.animateScrollToItem(messages.size - 1)
+            }
+        }
     }
 
     Scaffold(
@@ -125,7 +140,7 @@ fun SingleChatScreen(viewModel: ChatViewModel, matchId: String, onBack: () -> Un
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 items(messages) { msg ->
-                    val isMe = msg.senderId != matchId
+                    val isMe = msg.senderId == myUserId
                     MessageBubble(msg, isMe)
                 }
             }

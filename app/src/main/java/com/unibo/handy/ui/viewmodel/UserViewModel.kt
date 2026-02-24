@@ -1,21 +1,21 @@
 package com.unibo.handy.ui.viewmodel
 
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import androidx.lifecycle.viewmodel.initializer
-import androidx.lifecycle.viewmodel.viewModelFactory
-import com.unibo.handy.HandyApp
+import com.unibo.handy.data.db.entity.toDomain
 import com.unibo.handy.data.network.WebSocketManager
 import com.unibo.handy.data.repository.UserRepository
 import com.unibo.handy.ui.UserUiState
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
-class UserViewModel(
+@HiltViewModel
+class UserViewModel @Inject constructor(
     private val userRepository: UserRepository,
     private val webSocketManager: WebSocketManager
 ) : ViewModel() {
@@ -27,11 +27,14 @@ class UserViewModel(
     init {
         // Osserva i cambiamenti dell'utente dal DB
         viewModelScope.launch {
-            userRepository.currentUserFlow.collectLatest { user ->
+            userRepository.currentUserFlow.collectLatest { userEntity ->
+                // Mappa l'Entity nel modello di dominio
+                val domainUser = userEntity?.toDomain()
+
                 _uiState.update {
                     it.copy(
-                        currentUser = user,
-                        isHelperMode = user?.helpModeActive ?: false,
+                        currentUser = domainUser,
+                        isHelperMode = domainUser?.helpModeActive ?: false,
                         isInitialDataLoaded = true
                     )
                 }
@@ -92,18 +95,6 @@ class UserViewModel(
     fun retryConnection() {
         viewModelScope.launch {
             webSocketManager.resetAndReconnect()
-        }
-    }
-
-    companion object {
-        val Factory: ViewModelProvider.Factory = viewModelFactory {
-            initializer {
-                val app = (this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY] as HandyApp)
-                UserViewModel(
-                    app.userRepository,
-                    app.webSocketManager
-                )
-            }
         }
     }
 }

@@ -1,23 +1,23 @@
 package com.unibo.handy.ui.viewmodel
 
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import androidx.lifecycle.viewmodel.initializer
-import androidx.lifecycle.viewmodel.viewModelFactory
-import com.unibo.handy.HandyApp
+import com.unibo.handy.data.db.entity.toDomain
 import com.unibo.handy.data.repository.SecureKeyRepository
 import com.unibo.handy.data.repository.UserRepository
 import com.unibo.handy.domain.PaillierEncryption
 import com.unibo.handy.ui.AuthUiState
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
 enum class AuthState { LOADING, LOGGED_IN, NOT_LOGGED }
 
-class AuthViewModel(
+@HiltViewModel
+class AuthViewModel @Inject constructor(
     private val userRepository: UserRepository,
     private val secureKeyRepository: SecureKeyRepository
 ) : ViewModel() {
@@ -34,8 +34,9 @@ class AuthViewModel(
     private fun checkUserSession() {
         viewModelScope.launch {
             // Controlla se nel DB esiste un utente
-            userRepository.currentUserFlow.collect { user ->
-                if (user != null) {
+            userRepository.currentUserFlow.collect { userEntity ->
+                val domainUser = userEntity?.toDomain()
+                if (domainUser != null) {
                     _authState.value = AuthState.LOGGED_IN
                 } else {
                     _authState.value = AuthState.NOT_LOGGED
@@ -65,19 +66,6 @@ class AuthViewModel(
                 _uiState.update { it.copy(isLoading = false, isSignUpSuccess = true) }
             } catch (e: Exception) {
                 _uiState.update { it.copy(isLoading = false, error = e.message) }
-            }
-        }
-    }
-
-    // Factory
-    companion object {
-        val Factory: ViewModelProvider.Factory = viewModelFactory {
-            initializer {
-                val app = (this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY] as HandyApp)
-                AuthViewModel(
-                    app.userRepository,
-                    app.secureKeyRepository
-                )
             }
         }
     }

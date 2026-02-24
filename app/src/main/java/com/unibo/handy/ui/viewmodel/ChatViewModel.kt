@@ -1,19 +1,18 @@
 package com.unibo.handy.ui.viewmodel
 
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import androidx.lifecycle.viewmodel.initializer
-import androidx.lifecycle.viewmodel.viewModelFactory
-import com.unibo.handy.HandyApp
 import com.unibo.handy.data.db.entity.ChatMessagesEntity
 import com.unibo.handy.data.repository.ChatRepository
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
-class ChatViewModel(
+@HiltViewModel
+class ChatViewModel @Inject constructor(
     private val chatRepository: ChatRepository
 ) : ViewModel() {
     private val _messages = MutableStateFlow<List<ChatMessagesEntity>>(emptyList())
@@ -36,15 +35,5 @@ class ChatViewModel(
 
     fun acceptMatch(chatId: String) {
         viewModelScope.launch { chatRepository.acceptMatch(chatId) }
-    }
-
-    // Factory
-    companion object {
-        val Factory: ViewModelProvider.Factory = viewModelFactory {
-            initializer {
-                val app = (this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY] as HandyApp)
-                ChatViewModel(app.chatRepository)
-            }
-        }
     }
 }

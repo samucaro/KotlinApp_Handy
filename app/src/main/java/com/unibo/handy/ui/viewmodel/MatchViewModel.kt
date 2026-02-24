@@ -1,15 +1,12 @@
 package com.unibo.handy.ui.viewmodel
 
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import androidx.lifecycle.viewmodel.initializer
-import androidx.lifecycle.viewmodel.viewModelFactory
-import com.unibo.handy.HandyApp
 import com.unibo.handy.data.db.dao.MatchDAO
 import com.unibo.handy.data.repository.ChatRepository
 import com.unibo.handy.data.repository.MatchingRepository
 import com.unibo.handy.ui.MatchUiState
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asStateFlow
@@ -17,8 +14,10 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
-class MatchViewModel(
+@HiltViewModel
+class MatchViewModel @Inject constructor(
     private val matchingRepository: MatchingRepository,
     private val chatRepository: ChatRepository,
     matchDao: MatchDAO
@@ -66,19 +65,5 @@ class MatchViewModel(
 
     fun dismissPopup() {
         _uiState.update { it.copy(showMatchPopup = false) }
-    }
-
-    // Factory
-    companion object {
-        val Factory: ViewModelProvider.Factory = viewModelFactory {
-            initializer {
-                val app = (this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY] as HandyApp)
-                MatchViewModel(
-                    app.matchingRepository,
-                    app.chatRepository,
-                    app.db.matchDao()
-                )
-            }
-        }
     }
 }

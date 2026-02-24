@@ -48,6 +48,12 @@
             android:foregroundServiceType="dataSync"
             android:exported="false">
         </service>
+        <service
+            android:name=".data.network.HandyFcmService"
+            android:enabled="true"
+            android:exported="false">
+        </service>
+
         <!-- Per ascoltare eventi del sistema
         <<receiver> </receiver> -->
         <!-- Per condividere dati con altre app

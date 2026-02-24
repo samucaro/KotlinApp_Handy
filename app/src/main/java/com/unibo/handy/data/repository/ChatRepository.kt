@@ -9,8 +9,9 @@ import com.unibo.handy.data.db.entity.ChatMessagesEntity
 import com.unibo.handy.data.db.entity.MatchStatus
 import com.unibo.handy.data.network.WebSocketManager
 import kotlinx.coroutines.flow.Flow
+import javax.inject.Inject
 
-class ChatRepository(
+class ChatRepository @Inject constructor(
     private val chatDao: ChatDAO,
     private val userDao: UserDAO,
     private val matchDao: MatchDAO,
@@ -32,7 +33,7 @@ class ChatRepository(
         val payload = mapOf(
             "type" to "CHAT_MESSAGE",
             "payload" to mapOf(
-                "target_id" to requesterId,
+                "to" to requesterId,
                 "message" to "SYSTEM: Richiesta Accettata! Ora potete chattare."
             )
         )

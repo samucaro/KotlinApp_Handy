@@ -2,11 +2,18 @@ package com.unibo.handy.data.repository
 
 import android.content.Context
 import android.util.Base64
+import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.preferencesDataStore
 import com.unibo.handy.domain.CryptoManager
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import java.math.BigInteger
+import javax.inject.Inject
 
-class SecureKeyRepository(
+// Estensione per inizializzare il DataStore
+private val Context.dataStore by preferencesDataStore(name = "secure_keys")
+class SecureKeyRepository @Inject constructor(
     private val context: Context,
     private val cryptoManager: CryptoManager
 ) {
