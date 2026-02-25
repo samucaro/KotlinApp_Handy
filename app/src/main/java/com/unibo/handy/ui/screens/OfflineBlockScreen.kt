@@ -16,6 +16,7 @@ import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -30,6 +31,7 @@ import com.unibo.handy.ui.theme.HandyPrimary
 
 @Composable
 fun OfflineBlockScreen(
+    isReconnecting: Boolean = false,
     onRetry: () -> Unit
 ) {
     Column(
@@ -74,15 +76,28 @@ fun OfflineBlockScreen(
         // Bottone Riprova
         Button(
             onClick = onRetry,
+            enabled = !isReconnecting,
             colors = ButtonDefaults.buttonColors(containerColor = HandyPrimary),
             modifier = Modifier
                 .fillMaxWidth()
                 .height(50.dp),
             shape = RoundedCornerShape(12.dp)
         ) {
-            Icon(Icons.Default.Refresh, contentDescription = null)
-            Spacer(modifier = Modifier.width(8.dp))
-            Text("Riprova Connessione")
+            if (isReconnecting) {
+                // Mostra icona caricamente
+                CircularProgressIndicator(
+                    modifier = Modifier.size(24.dp),
+                    color = Color.White,
+                    strokeWidth = 2.dp
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Text("Connessione in corso...", color = Color.White)
+            } else {
+                // Mostra tasto riprova
+                Icon(Icons.Default.Refresh, contentDescription = null)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Riprova Connessione")
+            }
         }
     }
 }

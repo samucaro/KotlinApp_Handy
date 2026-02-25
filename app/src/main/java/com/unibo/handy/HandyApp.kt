@@ -14,7 +14,6 @@ import com.unibo.handy.data.repository.MatchingRepository
 import com.unibo.handy.data.repository.SecureKeyRepository
 import com.unibo.handy.data.network.MessageDispatcher
 import com.unibo.handy.data.LocationClientSensor
-import com.unibo.handy.data.network.RetrofitClient
 import com.unibo.handy.domain.CryptoManager
 import com.unibo.handy.data.network.WebSocketManager
 import com.unibo.handy.data.repository.strategy.ChatMessageStrategy

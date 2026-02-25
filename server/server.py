@@ -61,9 +61,21 @@ class ConnectionManager:
     async def connect(self, websocket: WebSocket, client_id: str):
         await websocket.accept()
         active_connections[client_id] = websocket
+        
     def disconnect(self, client_id: str):
         if client_id in active_connections:
             del active_connections[client_id]
+
+    async def send_json(self, message: dict, client_id: str):
+        if client_id in active_connections:
+            websocket = active_connections[client_id]
+            try:
+                await websocket.send_json(message)
+            except Exception as e:
+                print(f"Errore durante l'invio WS al client {client_id}: {e}")
+                self.disconnect(client_id)
+        else:
+            print(f"Impossibile inviare. Il client {client_id} non è connesso al WebSocket.")
 
 manager = ConnectionManager()
 
@@ -123,6 +135,11 @@ async def register_user(data: RegistrationDTO):
 async def receive_heartbeat(data: HeartBeatModel):
     target_uuid = data.clientId
 
+    # --- AGGIUNGI QUESTI PRINT PER LA DEMO ---
+    print(f"\n🛡️ [SERVER] HEARTBEAT RICEVUTO DA {target_uuid[:8]}...")
+    print(f"   -> Il server vede la X: {data.blurredX} (Non sa qual è quella vera)")
+    print(f"   -> Il server vede E(r): {data.encryptedBlur[:30]}... (Non ha la chiave privata per decifrarlo!)")
+
     if target_uuid in client_registry:
         client_registry[target_uuid]["last_known_r"] = data.encryptedBlur
         
@@ -131,6 +148,9 @@ async def receive_heartbeat(data: HeartBeatModel):
     # RE-BLURRING UPDATE (Eq. 10 paper): p^{rblur} = (blurredX - ^{cs}r_i + r^g) mod P
     reblurred_x = mod_add(mod_sub(data.blurredX, cs_r_i), R_GLOBAL)
     reblurred_y = mod_add(mod_sub(data.blurredY, cs_r_i), R_GLOBAL)
+
+    print(f"   -> REDISTRIBUTION: Il server applica R_GLOBAL ({R_GLOBAL})")
+    print(f"   -> Invia al Custode la X ri-offuscata: {reblurred_x}")
 
     service_client_id = storage_map.get(target_uuid)
     if service_client_id:
@@ -233,8 +253,16 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
             
             if msg_type == "MATCH_FOUND":
                 print(f"MATCH CONFIRMED! Il Client {client_id} ha validato la connessione.")
-                # Qui potresti notificare il requester che un helper ha accettato!
-                # È un Heartbeat
+                
+                # --- MODIFICA: Inoltra il MATCH_FOUND al Requester ---
+                payload = data.get("payload", {})
+                requester_id = payload.get("requester_id")
+                
+                if requester_id:
+                    print(f"Inoltro notifica di Match al Requester {requester_id[:8]}...")
+                    # Invia lo stesso DTO al richiedente
+                    import asyncio
+                    asyncio.create_task(manager.send_json(data, requester_id))
             elif msg_type == "CHAT_MESSAGE":
                 await handle_chat_message(data, client_id)
             else:

@@ -86,6 +86,13 @@ class UserViewModel @Inject constructor(
         _uiState.update { it.copy(helperCategoryDraft = category) }
     }
 
+    // Chiamato dal Dispatcher quando il Server inoltra il MATCH_FOUND
+    fun onMatchFoundNotification() {
+        _uiState.update {
+            it.copy(statusMessage = "match avvenuto, attendi il messaggio del lavoratore")
+        }
+    }
+
     fun logout() {
         viewModelScope.launch {
             userRepository.logout()

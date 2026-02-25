@@ -36,6 +36,7 @@ class NetworkService : Service() {
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     // Serve a verificare se il servizio è già in esecuzione e impedire di creare duplicati
     private var backgroundJob: Job? = null
+    private var heartbeatJob: Job? = null
 
     // Dipendenze
     @Inject lateinit var userRepo: UserRepository
@@ -130,6 +131,7 @@ class NetworkService : Service() {
                     // Schedulazione a 15 minuti (limite minimo di Android)
                     val heartbeatRequest = PeriodicWorkRequestBuilder<HeartbeatWorker>(15, TimeUnit.MINUTES)
                         .setConstraints(constraints)
+                        .setInitialDelay(15, TimeUnit.MINUTES)
                         .build()
 
                     // Se c'è già un worker con lo stesso nome, UPDATE lo sovrascrive con le nuove impostazioni
@@ -141,7 +143,9 @@ class NetworkService : Service() {
 
                     // --- STRATEGIA 2: FOREGROUND (Coroutine a 5 min) ---
                     // Questo gira solo finché l'app/servizio è vivo
-                    launch {
+                    heartbeatJob?.cancel()
+
+                    heartbeatJob = launch {
                         Log.d("HandyService", "Avvio ciclo heartbeat rapido (5 min)")
                         while (isActive) {
                             // Inviamo la posizione
@@ -149,13 +153,14 @@ class NetworkService : Service() {
 
                             // Aspettiamo 5 minuti (300.000 millisecondi)
                             // Non scendere sotto i 3-5 minuti per rispettare i vincoli del paper SamaritanCloud
-                            delay(5 * 60 * 1000L)
+                            delay(10 * 1000L) //5 * 60 * 1000L
                         }
                     }
                 } else {
                     // SE L'UTENTE SPEGNE L'HELPER MODE, CANCELLIAMO IL WORKER
                     Log.d("HandyService", "Helper mode OFF: Cancel WorkManager")
                     WorkManager.getInstance(applicationContext).cancelUniqueWork("HeartbeatWork")
+                    heartbeatJob?.cancel()
                 }
             }
         }

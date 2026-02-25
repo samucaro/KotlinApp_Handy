@@ -47,6 +47,20 @@ async def run_python_helper(client_id: str, will_match: bool):
                         }
                     }
                     await ws.send(json.dumps(match_confirm))
+                    
+                    # --- MODIFICA: SIMULA L'INVIO DELLA CHAT DOPO 3 SECONDI ---
+                    print("⏳ Attendo 3 secondi per simulare la digitazione...")
+                    await asyncio.sleep(3)
+                    
+                    chat_msg = {
+                        "type": "CHAT_MESSAGE",
+                        "payload": {
+                            "to": requester,
+                            "message": "Ciao! Sono l'elettricista, ho visto la tua richiesta. Arrivo subito!"
+                        }
+                    }
+                    await ws.send(json.dumps(chat_msg))
+                    print("💬 Messaggio di chat inviato al Requester!")
                 else:
                     print("❌ Esito: DISTANZA > TOLLERANZA. Scarto la richiesta (Nessun invio).")
 

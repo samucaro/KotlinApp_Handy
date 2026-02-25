@@ -20,9 +20,10 @@ import kotlin.math.pow
 
 // 3 STATI POSSIBILI DELLA RETE
 sealed interface NetworkStatus {
-    object Initializing : NetworkStatus  // Fase di Boot
-    object Connected : NetworkStatus     // Online
-    object Disconnected : NetworkStatus  // Offline dopo tentativo
+    object Initializing : NetworkStatus // Fase di Boot
+    object Connected : NetworkStatus // Online
+    object Disconnected : NetworkStatus // Offline dopo tentativo
+    object Reconnecting : NetworkStatus // Offline prima di tentativo
 }
 
 class WebSocketManager(private val client: OkHttpClient) {
@@ -49,7 +50,7 @@ class WebSocketManager(private val client: OkHttpClient) {
         private const val WS_URL = "ws://10.0.2.2:8000/ws/"
     }
 
-    fun connect(idUser: String) {
+    fun connect(idUser: String, isSilentReconnect: Boolean = false) {
         // Idempotenza: se  già connesso o in fase di connessione, evita duplicati
         if (webSocket != null) {
             Log.d("HandyWS", "Socket already connected")
@@ -59,7 +60,11 @@ class WebSocketManager(private val client: OkHttpClient) {
         currentUserId = idUser
         isIntentionalClose = false
 
-        _networkStatus.value = NetworkStatus.Initializing
+        // Cambia stato solo se non è un tentativo in background
+        if (!isSilentReconnect && _networkStatus.value != NetworkStatus.Reconnecting) {
+            _networkStatus.value = NetworkStatus.Initializing
+        }
+
         Log.d("HandyWS", "--- NUOVO TENTATIVO DI CONNESSIONE LANCIATO ---")
 
         val request = Request.Builder()
@@ -104,7 +109,7 @@ class WebSocketManager(private val client: OkHttpClient) {
         webSocket?.cancel()
         webSocket = null
 
-        _networkStatus.value = NetworkStatus.Initializing
+        _networkStatus.value = NetworkStatus.Reconnecting
 
         currentUserId?.let { connect(it) }
     }
@@ -149,7 +154,7 @@ class WebSocketManager(private val client: OkHttpClient) {
         if (isIntentionalClose || currentUserId == null) return
 
         // Backoff esponenziale: 3s, 6s, 12s, 24s... massimo 1 minuto
-        val backoffDelay = (3000L * 2.0.pow(reconnectAttemptCount.toDouble())).toLong()
+        val backoffDelay = (2000L * 2.0.pow(reconnectAttemptCount.toDouble())).toLong()
             .coerceAtMost(60000L) // Cap a 60 secondi
 
         reconnectAttemptCount++
@@ -167,7 +172,7 @@ class WebSocketManager(private val client: OkHttpClient) {
                 // Impostare webSocket a null prima di chiamare connect non serve se gestito nei listener,
                 // ma per sicurezza  assicura che sia pulito
                 webSocket = null
-                connect(currentUserId!!)
+                connect(currentUserId!!, isSilentReconnect = true)
             }
         }
     }

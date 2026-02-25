@@ -68,7 +68,12 @@ class LocationRepository @Inject constructor(
         val encryptedBlur = PaillierEncryption.encrypt(rawNoiseBigInt, modulus)
 
         Log.d("LocationRepo", "Blurred position generated: X=${blurredData.betaMinusX}, Y=${blurredData.betaMinusY}")
-
+        Log.w("CryptoProof", """
+                --- PROVA CRITTOGRAFICA HEARTBEAT ---
+                1. Rumore generato (r in chiaro): $rawNoiseBigInt
+                2. Coordinata X Offuscata (X + r): ${blurredData.betaMinusX}
+                3. Rumore r Cifrato con Paillier E(r): ${encryptedBlur.toString().take(30)}... [TRONCATO, lunghezza reale: ${encryptedBlur.toString().length} cifre!]
+                """.trimIndent())
         // 4. CHIAMATA DI RETE (Stateless)
         // Rispetto al paper vengono inviati solo gli aggiornamenti periodici della posizione
         try {
@@ -76,7 +81,7 @@ class LocationRepository @Inject constructor(
                 clientId = user.userId,
                 blurredX = blurredData.betaMinusX,
                 blurredY = blurredData.betaMinusY,
-                encryptedBlur = encryptedBlur.toString() //per ora non è cifrato
+                encryptedBlur = encryptedBlur.toString()
             )
 
             val response = apiService.sendHeartbeat(dto)
