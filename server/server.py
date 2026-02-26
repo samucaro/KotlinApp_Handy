@@ -1,7 +1,9 @@
 import json
+import os
 import random
 import time
 from typing import Dict, Optional
+from dotenv import load_dotenv
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 import firebase_admin
@@ -10,8 +12,11 @@ from firebase_admin import credentials, messaging
 # ==========================================
 # INIZIALIZZAZIONE FIREBASE
 # ==========================================
+load_dotenv()
+
 try:
-    cred = credentials.Certificate("samaritan-cloud-firebase-adminsdk-fbsvc-fa3fd80e1b.json")
+    cred_dict = json.loads(os.environ["FIREBASE_CREDENTIALS"])
+    cred = credentials.Certificate(cred_dict)
     firebase_admin.initialize_app(cred)
     print("Firebase Admin inizializzato con successo.")
 except Exception as e:

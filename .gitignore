@@ -36,24 +36,24 @@ google-services.json
 # --- PYTHON SERVER BACKEND ---
 
 # Byte-compiled / Optimized / DLL files
-# Python compila file .pyc per andare più veloce, non servono su git
 __pycache__/
 *.py[cod]
 *$py.class
 
 # Virtual Environments
-# Questa è la cartella più pesante e importante da ignorare.
-# Contiene tutte le librerie scaricate con pip.
 server_backend/venv/
 server_backend/env/
 venv/
 env/
 
 # Environment Variables
-# Se in futuro userai un file .env per le password del server, questo lo protegge
 .env
 .env.local
 
-# IDE specifici per Python (se usi VS Code o PyCharm)
+# IDE specifici per Python (VS Code, PyCharm)
 .vscode/
 .python-version
+
+# --- FIREBASE ADMIN SDK KEY ---
+# Mai committare chiavi di service account server
+samaritan-cloud-firebase-adminsdk-*.json
