@@ -15,6 +15,7 @@ import kotlinx.coroutines.withContext
 import java.math.BigInteger
 import java.util.UUID
 import javax.inject.Inject
+import javax.inject.Singleton
 
 /**
  * Repository responsabile della gestione dell'identità dell'utente corrente.
@@ -23,6 +24,7 @@ import javax.inject.Inject
  * 2. Stato "Helper" (Attivo/Non Attivo)
  * 3. Sincronizzazione del profilo con il server via HTTP (Registrazione).
  */
+@Singleton
 class UserRepository @Inject constructor(
     // Dati DB
     private val userDao: UserDAO,

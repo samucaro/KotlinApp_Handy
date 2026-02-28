@@ -119,7 +119,8 @@ fun HandyAppEntry() {
                 val matchVM: MatchViewModel = hiltViewModel()
                 val matchState by matchVM.uiState.collectAsState()
                 val pendingMatches by matchVM.pendingMatches.collectAsState()
-                val activeChats by matchVM.activeChats.collectAsState()
+                val activeChatsAsHelper by matchVM.activeChatsAsHelper.collectAsState()
+                val activeChatsAsRequester by matchVM.activeChatsAsRequester.collectAsState()
 
                 val context =
                     LocalContext.current // Serve per accedere al sistema di vibrazione
@@ -148,7 +149,8 @@ fun HandyAppEntry() {
                     userState = userState,
                     matchState = matchState,
                     pendingMatches = pendingMatches,
-                    activeChats = activeChats,
+                    activeChatsAsRequester = activeChatsAsRequester,
+                    activeChatsAsHelper = activeChatsAsHelper,
                     onToggleHelper = userVM::toggleHelperMode,
                     onRequestHelp = { cat, rad -> userVM.sendHelpRequest(cat, rad) },
                     onOpenChat = { matchId ->

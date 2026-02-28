@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.unibo.handy.data.db.entity.toDomain
 import com.unibo.handy.data.network.WebSocketManager
+import com.unibo.handy.data.repository.MatchingRepository
 import com.unibo.handy.data.repository.UserRepository
 import com.unibo.handy.ui.UserUiState
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -17,7 +18,8 @@ import javax.inject.Inject
 @HiltViewModel
 class UserViewModel @Inject constructor(
     private val userRepository: UserRepository,
-    private val webSocketManager: WebSocketManager
+    private val webSocketManager: WebSocketManager,
+    private val matchingRepository: MatchingRepository
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(UserUiState())
     val uiState = _uiState.asStateFlow()
@@ -37,6 +39,15 @@ class UserViewModel @Inject constructor(
                         isHelperMode = domainUser?.helpModeActive ?: false,
                         isInitialDataLoaded = true
                     )
+                }
+            }
+        }
+
+        // 2. ASCOLTA LA CONFERMA DI MATCH PER IL RICHIEDENTE
+        viewModelScope.launch {
+            matchingRepository.requesterMatchEvents.collectLatest { helperId ->
+                _uiState.update {
+                    it.copy(statusMessage = "Match avvenuto, attendi il messaggio del lavoratore")
                 }
             }
         }
@@ -65,7 +76,12 @@ class UserViewModel @Inject constructor(
                     category = category,
                     tolerance = radius
                 )
-                _uiState.update { it.copy(isLoading = false, statusMessage = "Richiesta inviata! Attendi un Helper...") }
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        statusMessage = "match in corso, cercando lavoratori"
+                    )
+                }
             } catch (e: Exception) {
                 _uiState.update { it.copy(isLoading = false, statusMessage = "Errore invio: ${e.message}") }
             }
@@ -84,13 +100,6 @@ class UserViewModel @Inject constructor(
     // Per configurazione iniziale helper mode
     fun updateHelperDraft(category: String) {
         _uiState.update { it.copy(helperCategoryDraft = category) }
-    }
-
-    // Chiamato dal Dispatcher quando il Server inoltra il MATCH_FOUND
-    fun onMatchFoundNotification() {
-        _uiState.update {
-            it.copy(statusMessage = "match avvenuto, attendi il messaggio del lavoratore")
-        }
     }
 
     fun logout() {

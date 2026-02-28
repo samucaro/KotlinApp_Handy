@@ -44,6 +44,7 @@ import com.unibo.handy.ui.theme.HandySecondary
 fun HomeScreen(
     currentUser: User?,
     isHelperMode: Boolean,
+    userStatusMessage: String,
     matchState: MatchUiState,
     selectedCategory: String,
     searchRadius: Float,
@@ -58,6 +59,7 @@ fun HomeScreen(
     HomeContent(
         currentUser = currentUser,
         isHelperMode = isHelperMode,
+        userStatusMessage = userStatusMessage,
         matchState = matchState,
         selectedCategory = selectedCategory,
         searchRadius = searchRadius,
@@ -88,6 +90,7 @@ fun HomeScreen(
 fun HomeContent(
     currentUser: User?,
     isHelperMode: Boolean,
+    userStatusMessage: String,
     matchState: MatchUiState,
     selectedCategory: String,
     searchRadius: Float,
@@ -179,7 +182,7 @@ fun HomeContent(
         }
 
         Spacer(modifier = Modifier.weight(1f))
-        Text(matchState.statusMessage, fontSize = 12.sp, color = Color.Gray)
+        Text(text = userStatusMessage, fontSize = 12.sp, color = Color.Gray)
 
         // POPUP MATCH TROVATO
         if (matchState.showMatchPopup) {

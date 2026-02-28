@@ -38,7 +38,8 @@ fun MainScreen(
     // Dati dal MatchViewModel
     matchState: MatchUiState,
     pendingMatches: List<MatchEntity>,
-    activeChats: List<MatchEntity>,
+    activeChatsAsRequester: List<MatchEntity>,
+    activeChatsAsHelper: List<MatchEntity>,
     onToggleHelper: (Boolean, String) -> Unit,
     onRequestHelp: (String, Double) -> Unit,
     onOpenChat: (String) -> Unit,
@@ -95,6 +96,7 @@ fun MainScreen(
                     0 -> HomeScreen(
                         currentUser = userState.currentUser,
                         isHelperMode = userState.isHelperMode,
+                        userStatusMessage = userState.statusMessage,
                         matchState = matchState,
                         selectedCategory = userState.selectedCategory,
                         searchRadius = userState.searchRadius,
@@ -112,7 +114,8 @@ fun MainScreen(
                         onReject = onRejectMatch
                     )
                     2 -> ChatListScreen(
-                        activeChats = activeChats,
+                        activeChatsAsRequester = activeChatsAsRequester,
+                        activeChatsAsHelper = activeChatsAsHelper,
                         onChatClick = onOpenChat
                     )
                     3 -> ProfileScreen(currentUser = userState.currentUser)

@@ -13,13 +13,17 @@ interface MatchDAO {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertMatch(match: MatchEntity)
 
-    // Query per la schermata "Activity" (Solo le richieste in attesa)
+    // Attività: Solo le richieste ricevute in veste di Helper
     @Query("SELECT * FROM matches WHERE status = 'PENDING' ORDER BY timestamp DESC")
     fun getPendingMatches(): Flow<List<MatchEntity>>
 
-    // Query per la schermata "Chat" (Solo match accettati)
-    @Query("SELECT * FROM matches WHERE status = 'ACCEPTED' ORDER BY timestamp DESC")
-    fun getActiveChats(): Flow<List<MatchEntity>>
+    // Chat: I lavori che ho accettato di fare (Helper)
+    @Query("SELECT * FROM matches WHERE status = 'ACCEPTED' AND isMeHelper = 1 ORDER BY timestamp DESC")
+    fun getActiveChatsAsHelper(): Flow<List<MatchEntity>>
+
+    // Chat: I lavori che ho richiesto agli altri (Richiedente)
+    @Query("SELECT * FROM matches WHERE status = 'ACCEPTED' AND isMeHelper = 0 ORDER BY timestamp DESC")
+    fun getActiveChatsAsRequester(): Flow<List<MatchEntity>>
 
     // Funzione per cambiare stato (Accept/Reject)
     @Query("UPDATE matches SET status = :newStatus WHERE requesterId = :matchId")

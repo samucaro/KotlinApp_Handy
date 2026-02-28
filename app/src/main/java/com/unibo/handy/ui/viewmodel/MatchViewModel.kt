@@ -29,8 +29,11 @@ class MatchViewModel @Inject constructor(
     val pendingMatches = matchDao.getPendingMatches()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    // Flow per la lista Chat (usato da MainScreen -> ChatListScreen)
-    val activeChats = matchDao.getActiveChats()
+    // FLUSSO SDOPPIATO PER LE CHAT
+    val activeChatsAsHelper = matchDao.getActiveChatsAsHelper()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val activeChatsAsRequester = matchDao.getActiveChatsAsRequester()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     init {

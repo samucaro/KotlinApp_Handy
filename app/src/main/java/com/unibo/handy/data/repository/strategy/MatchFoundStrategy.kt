@@ -13,7 +13,7 @@ class MatchFoundStrategy(
     override suspend fun handle(payload: String) {
         Log.d("MatchStrategy", "Ricevuta notifica di MATCH_FOUND dal server")
 
-        // Estrapoliamo l'ID dell'helper dal payload
+        // Estrapola l'ID dell'helper dal payload
         val dto = gson.fromJson(payload, MatchFoundDTO::class.java)
 
         // Avvisiamo il Repository che l'Helper ha accettato!

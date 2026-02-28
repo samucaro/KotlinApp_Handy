@@ -239,9 +239,35 @@ async def receive_help_request(data: HelpRequestModel):
 
     return {"status": "processed"}
 
+async def handle_chat_message(data: dict, sender_id: str):
+    payload = data.get("payload", {})
+    target_id = payload.get("to")
+    
+    if not target_id:
+        return
+
+    # Costruiamo il messaggio da inoltrare al richiedente
+    forward_msg = {
+        "type": "CHAT_MESSAGE",
+        "payload": {
+            "from": sender_id,
+            "to": target_id,
+            "message": payload.get("message", "")
+        }
+    }
+
+    # Prova a inviare via WebSocket se il destinatario è connesso
+    if target_id in active_connections:
+        print(f"Inoltro chat da {sender_id[:8]} a {target_id[:8]} via WS...")
+        await manager.send_json(forward_msg, target_id)
+    else:
+        # Se l'app è in background, tenta di usare Firebase
+        target_info = client_registry.get(target_id)
+        if target_info and target_info.get("fcmToken") and target_info.get("fcmToken") != "PYTHON_NO_FCM":
+            print(f"Inoltro chat da {sender_id[:8]} a {target_id[:8]} via FCM...")
+            send_fcm_message(target_info.get("fcmToken"), "CHAT_MESSAGE", forward_msg["payload"])
 
 # --- ROUTING WEBSOCKET ---
-
 @app.websocket("/ws/{client_id}")
 async def websocket_endpoint(websocket: WebSocket, client_id: str):
     await manager.connect(websocket, client_id)

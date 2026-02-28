@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
+import javax.inject.Singleton
 
 /**
  * Repository centrale per il protocollo SamaritanCloud.
@@ -24,6 +25,7 @@ import javax.inject.Inject
  * 1. Ruolo Richiedente: Invio Help-Request (Beta+).
  * 2. Ruolo Service Client: Custodia profili offuscati e Calcolo Match
  */
+@Singleton
 class MatchingRepository @Inject constructor(
     private val webSocketManager: WebSocketManager,
     private val matchDao: MatchDAO,
@@ -35,6 +37,9 @@ class MatchingRepository @Inject constructor(
     // Flow per notificare la UI di nuovi match
     private val _matchEvents = MutableSharedFlow<String>(replay = 0)
     val matchEvents = _matchEvents.asSharedFlow()
+
+    private val _requesterMatchEvents = MutableSharedFlow<String>(replay = 0)
+    val requesterMatchEvents = _requesterMatchEvents.asSharedFlow()
 
     // Gestione dei messaggi WebSocket specifici per il matching.
     suspend fun handleComputeMatch(payload: TuplaDTO) = withContext(Dispatchers.IO) {
@@ -75,8 +80,9 @@ class MatchingRepository @Inject constructor(
             requesterId = requesterId,
             helperId = helperId,
             username = requesterId.take(4),
-            category = "General", // Dovremmo recuperarla dal payload se presente
+            category = "General",
             phoneNumber = "ND",
+            isMeHelper = true,
             status = MatchStatus.PENDING
         )
         matchDao.insertMatch(newMatch)
@@ -125,5 +131,24 @@ class MatchingRepository @Inject constructor(
         } catch (e: Exception) {
             Log.e("MatchingRepo", "Error in handleStoreProfile", e)
         }
+    }
+
+    suspend fun handleMatchFoundNotification(helperId: String) {
+        Log.i("MatchingRepo", "Il server ci avvisa che l'Helper $helperId ha calcolato un match positivo!")
+
+        // Salva la chat nel DB. Qui è il Richiedente!
+        val newMatch = MatchEntity(
+            requesterId = helperId,
+            helperId = "ME",
+            username = "Helper_${helperId.take(4)}",
+            category = "Professionista",
+            phoneNumber = "ND",
+            isMeHelper = false,
+            status = MatchStatus.ACCEPTED
+        )
+        matchDao.insertMatch(newMatch)
+
+        // Avvisa lo UserViewModel di cambiare la scritta nella Home
+        _requesterMatchEvents.emit(helperId)
     }
 }

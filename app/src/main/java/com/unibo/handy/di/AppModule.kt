@@ -6,6 +6,7 @@ import com.unibo.handy.data.repository.ChatRepository
 import com.unibo.handy.data.repository.MatchingRepository
 import com.unibo.handy.data.repository.strategy.ChatMessageStrategy
 import com.unibo.handy.data.repository.strategy.ComputeMatchStrategy
+import com.unibo.handy.data.repository.strategy.MatchFoundStrategy
 import com.unibo.handy.data.repository.strategy.StoreProfileStrategy
 import dagger.Module
 import dagger.Provides
@@ -31,7 +32,8 @@ object AppModule {
             "COMPUTE_MATCH" to ComputeMatchStrategy(matchingRepository, gson),
             "STORE_PROFILE" to StoreProfileStrategy(matchingRepository, gson),
             "UPDATE_PROFILE" to StoreProfileStrategy(matchingRepository, gson),
-            "CHAT_MESSAGE" to ChatMessageStrategy(chatRepository, gson)
+            "CHAT_MESSAGE" to ChatMessageStrategy(chatRepository, gson),
+            "MATCH_FOUND" to MatchFoundStrategy(matchingRepository, gson)
         )
         return MessageDispatcher(handlersMap)
     }

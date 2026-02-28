@@ -17,5 +17,6 @@ data class MatchEntity(
     val category: String,
     val phoneNumber: String,
     val status: MatchStatus = MatchStatus.PENDING,
+    val isMeHelper: Boolean,
     val timestamp: Long = System.currentTimeMillis()
 )

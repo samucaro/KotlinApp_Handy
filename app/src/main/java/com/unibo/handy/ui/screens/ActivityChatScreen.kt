@@ -28,11 +28,18 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.SecondaryTabRow
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -127,28 +134,50 @@ fun PendingMatchItem(match: MatchEntity, onAccept: () -> Unit, onReject: () -> U
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChatListScreen(
-    activeChats: List<MatchEntity>,
+    activeChatsAsRequester: List<MatchEntity>,
+    activeChatsAsHelper: List<MatchEntity>,
     onChatClick: (String) -> Unit
 ) {
+    var selectedTabIndex by remember { mutableIntStateOf(0) }
+    val tabs = listOf("Le Mie Richieste", "I Miei Incarichi")
+
     Column(modifier = Modifier.fillMaxSize()) {
         TopAppBar(
             title = { Text("Messaggi", fontWeight = FontWeight.Bold) },
             colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
         )
 
-        if (activeChats.isEmpty()) {
+        // TABS PER DIVIDERE I RUOLI
+        SecondaryTabRow(
+            selectedTabIndex = selectedTabIndex,
+            containerColor = Color.White,
+            contentColor = HandyPrimary
+        ) {
+            tabs.forEachIndexed { index, title ->
+                Tab(
+                    selected = selectedTabIndex == index,
+                    onClick = { selectedTabIndex = index },
+                    text = { Text(title, fontWeight = FontWeight.Bold) }
+                )
+            }
+        }
+
+        val currentList = if (selectedTabIndex == 0) activeChatsAsRequester else activeChatsAsHelper
+        val emptyMessage = if (selectedTabIndex == 0) "Non hai richiesto nessun aiuto." else "Non hai incarichi attivi."
+
+        if (currentList.isEmpty()) {
             Box(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center
             ) {
-                Text("Nessuna conversazione attiva", color = Color.Gray)
+                Text(emptyMessage, color = Color.Gray)
             }
         } else {
             LazyColumn(
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                items(activeChats) { match ->
+                items(currentList) { match ->
                     ActiveChatItem(match, onChatClick)
                 }
             }
