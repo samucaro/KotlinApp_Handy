@@ -14,6 +14,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
+import com.unibo.handy.service.NetworkService
 import com.unibo.handy.ui.navigation.HandyAppEntry
 import com.unibo.handy.ui.theme.HandyTheme
 import dagger.hilt.android.AndroidEntryPoint

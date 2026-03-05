@@ -26,6 +26,6 @@ interface MatchDAO {
     fun getActiveChatsAsRequester(): Flow<List<MatchEntity>>
 
     // Funzione per cambiare stato (Accept/Reject)
-    @Query("UPDATE matches SET status = :newStatus WHERE requesterId = :matchId")
+    @Query("UPDATE matches SET status = :newStatus WHERE matchId = :matchId")
     suspend fun updateStatus(matchId: String, newStatus: MatchStatus)
 }

@@ -8,10 +8,5 @@ data class ProfileData(
 
     @ColumnInfo(name = "username") val username: String,
     @ColumnInfo(name = "category") val category: String,
-    @ColumnInfo("rating") val rating: Int,
-    /*
-     * Possibile aggiunta di una Map che mappa per ogni utante la recensione rilasciata per il
-     * relativo client, questo però comportarebbe l'aggiunta di un Converter che dice al db come
-     * salvare quest oggetto di tipo Map.
-     */
+    @ColumnInfo("rating") val rating: Int
 )

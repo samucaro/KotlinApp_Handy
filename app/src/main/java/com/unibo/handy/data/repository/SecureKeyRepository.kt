@@ -5,7 +5,7 @@ import android.util.Base64
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
-import com.unibo.handy.domain.CryptoManager
+import com.unibo.handy.domain.crypto.ICryptoManager
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import java.math.BigInteger
@@ -13,13 +13,28 @@ import javax.inject.Inject
 
 // Estensione per inizializzare il DataStore
 private val Context.dataStore by preferencesDataStore(name = "secure_keys")
+
 class SecureKeyRepository @Inject constructor(
     private val context: Context,
-    private val cryptoManager: CryptoManager
+    private val cryptoManager: ICryptoManager
 ) {
     companion object {
         val PRIVATE_KEY = stringPreferencesKey("group_private_key")
         val PUBLIC_MODULUS = stringPreferencesKey("public_modulus")
+    }
+
+    /**
+     * Simula il Trusted Third Party (TTP).
+     * Inietta le chiavi condivise di gruppo se il DataStore è vuoto.
+     */
+    suspend fun initKeysIfEmpty() {
+        val existingModulus = getPublicModulus()
+        if (existingModulus == null) {
+            val mockPublicModulus = BigInteger("3233")
+            val mockPrivateKey = BigInteger("2753")
+
+            saveKeys(mockPrivateKey, mockPublicModulus)
+        }
     }
 
     // Salva le chiavi criptandole e codificandole in Base64

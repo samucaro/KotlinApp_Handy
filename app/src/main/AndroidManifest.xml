@@ -28,7 +28,7 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.Handy"
-        android:usesCleartextTraffic="true"> <!-- Attributi dell App -->
+        android:usesCleartextTraffic="true">
 
         <!-- Schermate App -->
         <activity
@@ -43,20 +43,18 @@
         </activity>
         <!-- Per operazioni in background -->
         <service
-            android:name=".NetworkService"
+            android:name=".service.NetworkService"
             android:enabled="true"
             android:foregroundServiceType="dataSync"
             android:exported="false">
         </service>
         <service
-            android:name=".data.network.HandyFcmService"
+            android:name=".service.HandyFcmService"
             android:enabled="true"
             android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
         </service>
-
-        <!-- Per ascoltare eventi del sistema
-        <<receiver> </receiver> -->
-        <!-- Per condividere dati con altre app
-        <<provider> </provider> -->
     </application>
 </manifest>

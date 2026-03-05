@@ -1,7 +1,7 @@
 package com.unibo.handy.data.network
 
 import android.util.Log
-import com.unibo.handy.data.repository.strategy.MessageStrategy
+import com.unibo.handy.data.network.strategy.MessageStrategy
 
 // Agisce come un 'vigile urbano': ascolta il flusso grezzo di messaggi in arrivo dal socket,
 // ne ispeziona l'intestazione (il campo type) e instrada il payload al Repository competente
@@ -12,7 +12,6 @@ class MessageDispatcher(
         // Routing del payload al Repository specifico
         val handler = handlers[action]
         if (handler != null) {
-            Log.d("MessageDispatcher", "Esecuzione handler per l'azione: $action")
             try {
                 handler.handle(payload)
             } catch (e: Exception) {

@@ -1,16 +1,17 @@
 import json
 import os
 import random
-import time
+import asyncio
 from typing import Dict, Optional
 from dotenv import load_dotenv
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 import firebase_admin
 from firebase_admin import credentials, messaging
+from crypto_utils import P, mod_add, mod_sub
 
 # ==========================================
-# INIZIALIZZAZIONE FIREBASE
+# INIZIALIZZAZIONE
 # ==========================================
 load_dotenv()
 
@@ -18,18 +19,15 @@ try:
     cred_dict = json.loads(os.environ["FIREBASE_CREDENTIALS"])
     cred = credentials.Certificate(cred_dict)
     firebase_admin.initialize_app(cred)
-    print("Firebase Admin inizializzato con successo.")
+    print("INFO: Firebase Admin inizializzato correttamente.")
 except Exception as e:
-    print(f"ATTENZIONE: Errore inizializzazione Firebase: {e}")
+    print(f"WARN: Errore inizializzazione Firebase (FCM disabilitato): {e}")
 
 app = FastAPI()
 
-# --- COSTANTI E CONFIGURAZIONE (Paper SamaritanCloud) ---
-P = 999999937
-
-# 1. GENERAZIONE GLOBAL BLUR (r^g) all'avvio del server
+# Generazione Global Blur (r^g) all'avvio del server
 R_GLOBAL = random.randint(0, P - 1)
-print(f"Server inizializzato. Global Blur (r^g) = {R_GLOBAL}")
+print(f"INFO: Server avviato. Global Blur (r^g) generato: {R_GLOBAL}")
 
 # --- STATO DEL SERVER ---
 active_connections: Dict[str, WebSocket] = {}
@@ -38,27 +36,13 @@ server_noise_storage: Dict[str, int] = {} # Client-Specific Blurs (^{cs}r_i)
 storage_map: Dict[str, str] = {}
 
 
-# --- MATEMATICA MODULARE Zp ---
-def mod_add(a: int, b: int) -> int:
-    return ((a % P) + (b % P)) % P
-
-def mod_sub(a: int, b: int) -> int:
-    res = (a % P) - (b % P)
-    return res + P if res < 0 else res
-
 # --- MATEMATICA OMOMORFICA (PAILLIER) ---
 def homomorphic_add(enc_a_str: str, enc_b_str: str, pub_n_str: str) -> str:
-    """
-    Esegue l'addizione omomorfica: E(A + B) = (E(A) * E(B)) mod n^2
-    """
+    """Esegue l'addizione omomorfica Paillier: E(A + B) = (E(A) * E(B)) mod n^2"""
     c1 = int(enc_a_str)
     c2 = int(enc_b_str)
-    n = int(pub_n_str)
-    n_sq = n * n
-    
-    # Moltiplicazione dei ciphertext modulo n^2
-    c_sum = (c1 * c2) % n_sq
-    return str(c_sum)
+    n_sq = int(pub_n_str) ** 2
+    return str((c1 * c2) % n_sq)
 
 
 # --- GESTORE WEBSOCKET ---
@@ -73,52 +57,55 @@ class ConnectionManager:
 
     async def send_json(self, message: dict, client_id: str):
         if client_id in active_connections:
-            websocket = active_connections[client_id]
             try:
-                await websocket.send_json(message)
+                await active_connections[client_id].send_json(message)
             except Exception as e:
-                print(f"Errore durante l'invio WS al client {client_id}: {e}")
+                print(f"ERR: Errore invio WS al client {client_id}: {e}")
                 self.disconnect(client_id)
         else:
-            print(f"Impossibile inviare. Il client {client_id} non è connesso al WebSocket.")
+            print(f"WARN: Client {client_id} non connesso al WebSocket.")
 
 manager = ConnectionManager()
 
-# --- MODELLI DTO (Aggiornati per la crittografia forte) ---
+
+# --- MODELLI DTO ---
 class RegistrationDTO(BaseModel):
     clientId: str
     category: str
     isHelper: bool
     fcmToken: Optional[str] = None
-    publicModulus: Optional[str] = None # 'n' di Paillier
+    publicModulus: Optional[str] = None
 
 class HeartBeatModel(BaseModel):
     clientId: str
     blurredX: int
     blurredY: int
-    encryptedBlur: str # Deve essere Stringa per via delle dimensioni di Paillier
+    encryptedBlur: str
 
-class FcmTokenDTO(BaseModel):
-    clientId: str
-    fcmToken: str
+#class FcmTokenDTO(BaseModel):
+    #clientId: str
+    #fcmToken: str
 
 class HelpRequestModel(BaseModel):
     clientId: str
     category: str
     blurredX: int
     blurredY: int
-    encryptedR: str # Stringa
-    encryptedTol: str # Stringa
-    publicModulus: str # Necessario per calcolare n^2 sul server
+    encryptedR: str
+    encryptedTol: str
+    publicModulus: str
 
 def send_fcm_message(token: str, action: str, payload_dict: dict):
-    if not token: return
+    if not token or token == "PYTHON_NO_FCM": return
     message = messaging.Message(data={"action": action, "payload": json.dumps(payload_dict)}, token=token)
-    try: messaging.send(message)
-    except Exception as e: print(f"Errore FCM: {e}")
+    try:
+        messaging.send(message)
+    except Exception as e:
+        print(f"ERR: Impossibile inviare messaggio FCM: {e}")
+
 
 # ==========================================
-# API HTTP - REDISTRIBUTION (Protocollo SamaritanCloud)
+# API HTTP - PROTOCOLLO SAMARITAN CLOUD
 # ==========================================
 @app.post("/register_profile")
 async def register_user(data: RegistrationDTO):
@@ -131,19 +118,16 @@ async def register_user(data: RegistrationDTO):
         "isHelper": data.isHelper,
         "fcmToken": data.fcmToken,
         "publicModulus": data.publicModulus,
-        "last_known_r": "0" # Stringa per Paillier
+        "last_known_r": "0"
     }
-    if data.isHelper: storage_map[data.clientId] = data.clientId
+    if data.isHelper:
+        storage_map[data.clientId] = data.clientId
     return {"status": "registered"}
 
 @app.post("/heartbeat")
 async def receive_heartbeat(data: HeartBeatModel):
     target_uuid = data.clientId
-
-    # --- AGGIUNGI QUESTI PRINT PER LA DEMO ---
-    print(f"\n🛡️ [SERVER] HEARTBEAT RICEVUTO DA {target_uuid[:8]}...")
-    print(f"   -> Il server vede la X: {data.blurredX} (Non sa qual è quella vera)")
-    print(f"   -> Il server vede E(r): {data.encryptedBlur[:30]}... (Non ha la chiave privata per decifrarlo!)")
+    print(f"INFO: Ricevuta Profile-Update-Request da {target_uuid[:8]}")
 
     if target_uuid in client_registry:
         client_registry[target_uuid]["last_known_r"] = data.encryptedBlur
@@ -153,9 +137,6 @@ async def receive_heartbeat(data: HeartBeatModel):
     # RE-BLURRING UPDATE (Eq. 10 paper): p^{rblur} = (blurredX - ^{cs}r_i + r^g) mod P
     reblurred_x = mod_add(mod_sub(data.blurredX, cs_r_i), R_GLOBAL)
     reblurred_y = mod_add(mod_sub(data.blurredY, cs_r_i), R_GLOBAL)
-
-    print(f"   -> REDISTRIBUTION: Il server applica R_GLOBAL ({R_GLOBAL})")
-    print(f"   -> Invia al Custode la X ri-offuscata: {reblurred_x}")
 
     service_client_id = storage_map.get(target_uuid)
     if service_client_id:
@@ -177,11 +158,11 @@ async def receive_heartbeat(data: HeartBeatModel):
 @app.post("/help_request")
 async def receive_help_request(data: HelpRequestModel):
     requester_id = data.clientId
-    category_needed = data.category
+    print(f"INFO: Ricevuta Help-Request da {requester_id[:8]} per categoria: {data.category}")
 
     candidates = [
         uid for uid, info in client_registry.items()
-        if info.get("category") == category_needed and info.get("isHelper") is True and uid != requester_id
+        if info.get("category") == data.category and info.get("isHelper") is True and uid != requester_id
     ]
     if not candidates: candidates.append(requester_id) # Auto-match test
 
@@ -195,58 +176,44 @@ async def receive_help_request(data: HelpRequestModel):
         cs_r_target = server_noise_storage[target_id] 
         target_enc_r = client_registry[target_id]["last_known_r"]
 
-        # --- CALCOLO TUPLA (Protocollo esteso Eq. 12, 13, 14, 15) ---
-        
-        # T3: (^3T_{lj}) = (p_l^q + r^q + ^{cs}r^q + r^g) mod P
-        # data.blurredX è già (p_l^q + r^q)
+        # CALCOLO TUPLA
         t3_x = mod_add(mod_add(data.blurredX, cs_r_req), R_GLOBAL)
         t3_y = mod_add(mod_add(data.blurredY, cs_r_req), R_GLOBAL)
-
-        # T4: Addizione Omomorfica dei blur cifrati (moltiplicazione modulo n^2)
-        # ^4T_{lj} = \xi_{sk}^h(r^q + r_j)
         t4_encrypted = homomorphic_add(data.encryptedR, target_enc_r, data.publicModulus)
-
-        # T5: Somma dei Client-Specific Blurs: (^{cs}r^q + ^{cs}r_j) mod P
         t5_server_blurs = mod_add(cs_r_req, cs_r_target)
 
-        # Payload da inviare al Service Client
         tupla_payload = {
             "t1_requesterId": requester_id,
             "t2_targetId": target_id,
             "t3_betaPlusX": t3_x,
             "t3_betaPlusY": t3_y,
-            "t4_sumUserBlur": t4_encrypted, # Ora è il vero ciphertext sommato!
+            "t4_sumUserBlur": t4_encrypted,
             "t5_sumServerBlur": t5_server_blurs,
-            "t6_tolerance": data.encryptedTol # Già cifrata dal client
+            "t6_tolerance": data.encryptedTol
         }
 
         service_client_id = storage_map.get(target_id)
         if service_client_id and service_client_id in client_registry:
             fcm_token = client_registry[service_client_id].get("fcmToken")
-            # --- MODIFICA PER I TEST ---
+
             if fcm_token == "PYTHON_NO_FCM":
-                # È uno script Python, mandiamo via WebSocket!
-                msg = {
-                    "type": "COMPUTE_MATCH",
-                    "payload": tupla_payload
-                }
-                # (Nota: manager.send_json richiede await, quindi dovrai rendere asincrono l'invio o usare un task)
-                import asyncio
+                msg = {"type": "COMPUTE_MATCH", "payload": tupla_payload}
                 asyncio.create_task(manager.send_json(msg, service_client_id))
             else:
-                # È l'App Android, usiamo Firebase
                 send_fcm_message(fcm_token, "COMPUTE_MATCH", tupla_payload)
 
     return {"status": "processed"}
 
+
+# ==========================================
+# GESTIONE WEBSOCKET
+# ==========================================
 async def handle_chat_message(data: dict, sender_id: str):
     payload = data.get("payload", {})
     target_id = payload.get("to")
     
-    if not target_id:
-        return
+    if not target_id: return
 
-    # Costruiamo il messaggio da inoltrare al richiedente
     forward_msg = {
         "type": "CHAT_MESSAGE",
         "payload": {
@@ -256,53 +223,38 @@ async def handle_chat_message(data: dict, sender_id: str):
         }
     }
 
-    # Prova a inviare via WebSocket se il destinatario è connesso
     if target_id in active_connections:
-        print(f"Inoltro chat da {sender_id[:8]} a {target_id[:8]} via WS...")
         await manager.send_json(forward_msg, target_id)
     else:
         # Se l'app è in background, tenta di usare Firebase
         target_info = client_registry.get(target_id)
-        if target_info and target_info.get("fcmToken") and target_info.get("fcmToken") != "PYTHON_NO_FCM":
-            print(f"Inoltro chat da {sender_id[:8]} a {target_id[:8]} via FCM...")
+        if target_info and target_info.get("fcmToken"):
             send_fcm_message(target_info.get("fcmToken"), "CHAT_MESSAGE", forward_msg["payload"])
 
-# --- ROUTING WEBSOCKET ---
+
 @app.websocket("/ws/{client_id}")
 async def websocket_endpoint(websocket: WebSocket, client_id: str):
     await manager.connect(websocket, client_id)
     try:
         while True:
             text = await websocket.receive_text()
-            
-            # Debug
-            # print(f"DEBUG RAW WS: {text}")
-
             data = json.loads(text)
-
             msg_type = data.get("type")
             
             if msg_type == "MATCH_FOUND":
-                print(f"MATCH CONFIRMED! Il Client {client_id} ha validato la connessione.")
-                
-                # --- MODIFICA: Inoltra il MATCH_FOUND al Requester ---
-                payload = data.get("payload", {})
-                requester_id = payload.get("requester_id")
-                
+                requester_id = data.get("payload", {}).get("requester_id")
                 if requester_id:
-                    print(f"Inoltro notifica di Match al Requester {requester_id[:8]}...")
-                    # Invia lo stesso DTO al richiedente
-                    import asyncio
+                    print(f"INFO: Match confermato. Inoltro al Requester {requester_id[:8]}")
                     asyncio.create_task(manager.send_json(data, requester_id))
             elif msg_type == "CHAT_MESSAGE":
                 await handle_chat_message(data, client_id)
             else:
-                print(f"WARN: Messaggio WS non riconosciuto da {client_id}: {text}")
+                print(f"WARN: Tipo messaggio non riconosciuto: {msg_type}")
 
     except WebSocketDisconnect:
         manager.disconnect(client_id)
     except Exception as e:
-        print(f"Errore WS Critico: {e}")
+        print(f"ERR: WebSocket connection error: {e}")
         manager.disconnect(client_id)
 
 # Avvio: uvicorn server:app --reload --host 0.0.0.0 --port 8000

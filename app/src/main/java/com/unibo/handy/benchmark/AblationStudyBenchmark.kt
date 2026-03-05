@@ -1,7 +1,7 @@
 package com.unibo.handy.benchmark
 
 import android.util.Log
-import com.unibo.handy.domain.PaillierEncryption
+import com.unibo.handy.domain.crypto.PaillierEncryption
 import java.math.BigInteger
 import kotlin.system.measureTimeMillis
 

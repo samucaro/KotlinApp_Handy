@@ -2,7 +2,7 @@ package com.unibo.handy.data.network.dto
 
 import com.google.gson.annotations.SerializedName
 
-class ChatMessageDTO {
-    @SerializedName("from") val from: String = ""
-    @SerializedName("message") val message: String = ""
-}
+data class ChatMessageDTO (
+    @SerializedName("from") val from: String,
+    @SerializedName("message") val message: String
+)

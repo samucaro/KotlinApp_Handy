@@ -17,21 +17,21 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
-import com.unibo.handy.ui.viewmodel.AuthState.LOGGED_IN
-import com.unibo.handy.ui.viewmodel.AuthState.NOT_LOGGED
+import com.unibo.handy.ui.features.auth.AuthState.LOGGED_IN
+import com.unibo.handy.ui.features.auth.AuthState.NOT_LOGGED
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.unibo.handy.data.network.NetworkStatus
-import com.unibo.handy.ui.screens.MainScreen
-import com.unibo.handy.ui.screens.OfflineBlockScreen
-import com.unibo.handy.ui.screens.SignUpScreen
-import com.unibo.handy.ui.screens.SingleChatScreen
-import com.unibo.handy.ui.screens.SplashScreen
-import com.unibo.handy.ui.viewmodel.AuthViewModel
-import com.unibo.handy.ui.viewmodel.ChatViewModel
-import com.unibo.handy.ui.viewmodel.MatchViewModel
-import com.unibo.handy.ui.viewmodel.UserViewModel
+import com.unibo.handy.ui.navigation.MainScreen
+import com.unibo.handy.ui.components.OfflineBlockScreen
+import com.unibo.handy.ui.features.auth.SignUpScreen
+import com.unibo.handy.ui.features.chat.SingleChatScreen
+import com.unibo.handy.ui.features.splash.SplashScreen
+import com.unibo.handy.ui.features.auth.AuthViewModel
+import com.unibo.handy.ui.features.chat.ChatViewModel
+import com.unibo.handy.ui.features.match.MatchViewModel
+import com.unibo.handy.ui.features.user.UserViewModel
 
 // Indirizzi delle rotte (schermate) con Jetpack Navigation
 sealed class Screen(val route: String) {
@@ -66,17 +66,12 @@ fun HandyAppEntry() {
                 val authState by authVM.authState.collectAsState()
 
                 //Naviga appena lo stato cambia
-                LaunchedEffect(authState, netStatus) {
+                LaunchedEffect(authState) {
                     if (authState == LOGGED_IN) {
-                        // Entra solo se la reteè connessa
-                        if (netStatus is NetworkStatus.Connected) {
-                            navController.navigate(Screen.Home.route) {
-                                popUpTo(Screen.Splash.route) { inclusive = true }
-                            }
+                        // Entra subito nella Home se loggato
+                        navController.navigate(Screen.Home.route) {
+                            popUpTo(Screen.Splash.route) { inclusive = true }
                         }
-                        // Se netStatus è Initializing, rimane sullo Splash Screen.
-                        // Se netStatus è Disconnected, il Box superiore disegnerà la schermata di offline
-
                     } else if (authState == NOT_LOGGED) {
                         // Nessun utente -> Va al SignUp (non serve la rete per mostrare la UI)
                         navController.navigate(Screen.SignUp.route) {
@@ -158,8 +153,9 @@ fun HandyAppEntry() {
                     },
                     onDismissPopup = matchVM::dismissPopup,
                     onAcceptMatch = { matchId ->
+                        val requesterId = matchState.incomingRequesterId ?: ""
                         // 1. Avvisa il ViewModel (aggiorna DB, manda notifica al server)
-                        matchVM.acceptMatch(matchId)
+                        matchVM.acceptMatch(matchId, requesterId)
 
                         // 2. NAVIGA subito alla chat
                         navController.navigate(Screen.ChatDetail.createRoute(matchId))

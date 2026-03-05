@@ -5,21 +5,6 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import androidx.hilt.work.HiltWorkerFactory
 import androidx.work.Configuration
-import com.google.gson.Gson
-import com.unibo.handy.data.db.HandyDB
-import com.unibo.handy.data.repository.UserRepository
-import com.unibo.handy.data.repository.ChatRepository
-import com.unibo.handy.data.repository.LocationRepository
-import com.unibo.handy.data.repository.MatchingRepository
-import com.unibo.handy.data.repository.SecureKeyRepository
-import com.unibo.handy.data.network.MessageDispatcher
-import com.unibo.handy.data.LocationClientSensor
-import com.unibo.handy.domain.CryptoManager
-import com.unibo.handy.data.network.WebSocketManager
-import com.unibo.handy.data.repository.strategy.ChatMessageStrategy
-import com.unibo.handy.data.repository.strategy.ComputeMatchStrategy
-import com.unibo.handy.data.repository.strategy.StoreProfileStrategy
-import com.unibo.handy.domain.MatchingService
 import dagger.hilt.android.HiltAndroidApp
 import javax.inject.Inject
 

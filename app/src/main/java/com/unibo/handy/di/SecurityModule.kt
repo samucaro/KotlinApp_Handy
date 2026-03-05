@@ -2,7 +2,7 @@ package com.unibo.handy.di
 
 import android.content.Context
 import com.unibo.handy.data.repository.SecureKeyRepository
-import com.unibo.handy.domain.CryptoManager
+import com.unibo.handy.data.security.CryptoManager
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn

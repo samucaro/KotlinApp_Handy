@@ -14,13 +14,7 @@ data class UserEntity(
     val passwordHash: String,
     val category: String,
     val helpModeActive: Boolean = false,
-    // Possibili ulteriori dati da aggiungere
-    // val myReviews: String = "[]", //elenco di recensioni che ha rilasciato l'utente
-
-    // --- DATI SPECIFICI AIUTANTE ---
-    // Media voti (resta 0 se utente user invece di helper)
-    val rating: Int = 0,
-    // val receivedReviews: String = "[]" //elenco di recensioni ricevute dagli utenti
+    val rating: Int = 0
 )
 
 // Extension function per mappare l'Entity nel modello di Dominio

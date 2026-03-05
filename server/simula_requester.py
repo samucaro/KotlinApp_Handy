@@ -12,7 +12,7 @@ def trigger_android_app():
     # Sostituisci questi valori con le coordinate (in fixed point) in cui si trova il tuo emulatore!
     req_x = 444900000  # Esempio: Latitudine Bologna in fixed point
     req_y = 113400000  # Esempio: Longitudine Bologna in fixed point
-    tolerance = 50000  # Tolleranza ampia per forzare il match
+    tolerance = 999999999  # Tolleranza ampia per forzare il match
     
     personalized_blur_r = random.randint(0, P - 1)
     

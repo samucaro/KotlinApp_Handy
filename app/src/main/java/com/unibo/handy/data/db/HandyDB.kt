@@ -21,7 +21,7 @@ import androidx.room.TypeConverters
         MatchEntity::class,
         ChatMessagesEntity::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = true
 )
 @TypeConverters(HandyTypeConverters::class)
@@ -41,9 +41,9 @@ abstract class HandyDB : RoomDatabase() {
             // Permette di evitare la creazione contemporanea del db
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
-                                context.applicationContext,
-                                HandyDB::class.java,
-                                "handy_db"
+                    context.applicationContext,
+                    HandyDB::class.java,
+                    "handy_db"
                 ).fallbackToDestructiveMigration(false).build()
                 INSTANCE = instance
                 instance

@@ -25,11 +25,8 @@ class ChatRepository @Inject constructor(
      * Quando l'Helper clicca su "Accetta" del popup o nell'Activity.
      * Trasforma la richiesta in una chat attiva.
      */
-    suspend fun acceptMatch(requesterId: String) {
-        Log.i("ChatRepo", "Accepting match for: $requesterId")
-
-        // Aggiorna lo stato della richiesta
-        matchDao.updateStatus(requesterId, MatchStatus.ACCEPTED)
+    suspend fun acceptMatch(matchId: String, requesterId: String) {
+        matchDao.updateStatus(matchId, MatchStatus.ACCEPTED)
 
         // Invia notifica via WebSocket al requester
         val payload = mapOf(
@@ -45,8 +42,8 @@ class ChatRepository @Inject constructor(
         saveIncomingMessage(requesterId, "Hai accettato la richiesta. Inizia a chattare!")
     }
 
-    suspend fun rejectMatch(requesterId: String) {
-        matchDao.updateStatus(requesterId, MatchStatus.REJECTED)
+    suspend fun rejectMatch(matchId: String) {
+        matchDao.updateStatus(matchId, MatchStatus.REJECTED)
     }
 
     fun getMessagesFlow(chatId: String): Flow<List<ChatMessagesEntity>> {
@@ -89,6 +86,5 @@ class ChatRepository @Inject constructor(
             timestamp = System.currentTimeMillis()
         )
         chatDao.insertMessage(entity)
-        Log.v("ChatRepo", "Incoming message saved from: $senderId")
     }
 }
