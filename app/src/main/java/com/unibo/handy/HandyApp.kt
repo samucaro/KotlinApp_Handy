@@ -8,25 +8,32 @@ import androidx.work.Configuration
 import dagger.hilt.android.HiltAndroidApp
 import javax.inject.Inject
 
+/**
+ * Entry point dell'applicazione Android.
+ * Viene istanziata dal sistema operativo prima di qualsiasi Activity o Service.
+ */
 @HiltAndroidApp
 class HandyApp : Application(), Configuration.Provider {
+    // Inietta la Factory di Hilt per permettere la Dependency Injection nei Worker
     @Inject
     lateinit var workerFactory: HiltWorkerFactory
 
-    // PATTERN SINGLETON: Permette al Service di accedere ai Repository
+    // Costanti statiche per l'intero ciclo di vita dell'app
     companion object {
-        // ID del canale per la notifica persistente
         const val CHANNEL_ID = "handy_service_channel"
         const val CHANNEL_NAME = "Handy Background Service"
     }
 
     override fun onCreate() {
         super.onCreate()
-        // Crea il canale di notifica
+        // Inizializzazione delle configurazioni di sistema necessarie fin dall'avvio
         createNotificationChannel()
     }
 
-    // Funzione di utilità per configurare il canale delle notifiche
+    /**
+     * Da Android 8.0 (API 26), i Foreground Service richiedono obbligatoriamente
+     * un Notification Channel registrato a livello di sistema.
+     */
     private fun createNotificationChannel() {
         val channel = NotificationChannel(
             CHANNEL_ID,
@@ -40,97 +47,12 @@ class HandyApp : Application(), Configuration.Provider {
         manager.createNotificationChannel(channel)
     }
 
-    // Configura il WorkManager per usare Hilt
+    /**
+     * Delega a Hilt la creazione dei WorkManager (es. HeartbeatWorker).
+     * Senza questo, il sistema operativo non saprebbe come "iniettare" gli UseCase nel Worker.
+     */
     override val workManagerConfiguration: Configuration
         get() = Configuration.Builder()
             .setWorkerFactory(workerFactory)
             .build()
-
-    /*
-    val gson = Gson()
-
-    // Valutare utilizzo di Hilt per injectare le dipendenze
-    // DataBase (lazy serve a inizializzare il DB solo quando viene usato)
-    val db by lazy { HandyDB.getDatabase(this) }
-    // Componenti core
-    private val locationClient by lazy { LocationClientSensor(this) }
-    val webSocketManager by lazy { WebSocketManager(RetrofitClient.sharedHttpClient) }
-    // Servizio di dominio
-    private val matchingService by lazy {
-        MatchingService(db.storedClientDao())
-    }
-
-    // --- SECURITY COMPONENTS ---
-    // Instanziamento del CryptoManager (che parla con il Keystore di Android)
-    val cryptoManager by lazy { CryptoManager() }
-
-    // --- 1. REPOSITORIES ---
-    val locationRepository by lazy {
-        LocationRepository(
-            locationClient = locationClient,
-            apiService = RetrofitClient.retrofitService,
-            userDao = db.userDao()
-        )
-    }
-
-    val userRepository by lazy {
-        UserRepository(
-            userDao = db.userDao(),
-            apiService = RetrofitClient.retrofitService,
-            locationRepo = locationRepository
-        )
-    }
-
-    val matchingRepository by lazy{
-        MatchingRepository(
-            webSocketManager = webSocketManager,
-            matchDao = db.matchDao(),
-            storedClientDao = db.storedClientDao(),
-            matchingService = matchingService,
-            secureKeyRepository = secureKeyRepository
-        )
-    }
-
-    val chatRepository by lazy {
-        ChatRepository(
-            db.chatDao(),
-            db.userDao(),
-            db.matchDao(),
-            webSocketManager
-        )
-    }
-
-    val secureKeyRepository by lazy {
-        SecureKeyRepository(this, cryptoManager)
-    }
-
-    // --- 2. STRATEGIES ---
-    private val computeMatchHandler by lazy {
-        ComputeMatchStrategy(matchingRepository, gson)
-    }
-
-    private val storeProfileHandler by lazy {
-        StoreProfileStrategy(matchingRepository, gson)
-    }
-
-    private val chatHandler by lazy {
-        ChatMessageStrategy(chatRepository, gson)
-    }
-
-    // --- 3. DISPATCHER CONFIGURATION ---
-    private val messageHandlersMap by lazy {
-        mapOf(
-            "COMPUTE_MATCH" to computeMatchHandler,
-            "STORE_PROFILE" to storeProfileHandler,
-            "UPDATE_PROFILE" to storeProfileHandler,
-            "CHAT_MESSAGE" to chatHandler
-        )
-    }
-
-    // Iniettiamo la mappa nel Dispatcher
-    val realtimeDispatcher by lazy {
-        MessageDispatcher(
-            handlers = messageHandlersMap
-        )
-    }*/
 }

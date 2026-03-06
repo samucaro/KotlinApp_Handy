@@ -7,7 +7,6 @@ import com.unibo.handy.data.network.WebSocketManager
 import com.unibo.handy.data.repository.MatchingRepository
 import com.unibo.handy.data.repository.UserRepository
 import com.unibo.handy.domain.usecase.match.SendHelpRequestUseCase
-import com.unibo.handy.ui.features.user.UserUiState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -17,6 +16,11 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+/**
+ * ViewModel principale per la gestione della sessione utente e del Ruolo Richiedente (Requester).
+ * Coordina l'abilitazione della modalità Helper, l'invio delle richieste di aiuto
+ * e monitora lo stato globale della connessione WebSocket.
+ */
 @HiltViewModel
 class UserViewModel @Inject constructor(
     private val userRepository: UserRepository,
@@ -27,13 +31,13 @@ class UserViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(UserUiState())
     val uiState = _uiState.asStateFlow()
 
+    // Esposizione diretta dello stato di rete dal Manager alla UI
     val networkStatus = webSocketManager.networkStatus
 
     init {
-        // Osserva i cambiamenti dell'utente dal DB
+        // 1. OSSERVAZIONE REATTIVA DELL'UTENTE (Single Source of Truth)
         viewModelScope.launch {
             userRepository.currentUserFlow.collectLatest { userEntity ->
-                // Mappa l'Entity nel modello di dominio
                 val domainUser = userEntity?.toDomain()
 
                 _uiState.update {
@@ -46,9 +50,9 @@ class UserViewModel @Inject constructor(
             }
         }
 
-        // 2. ASCOLTA LA CONFERMA DI MATCH PER IL RICHIEDENTE
+        // 2. ASCOLTO ASINCRONO DELLA CONFERMA DI MATCH (Ruolo Requester)
         viewModelScope.launch {
-            matchingRepository.requesterMatchEvents.collectLatest { helperId ->
+            matchingRepository.requesterMatchEvents.collectLatest { _ ->
                 _uiState.update {
                     it.copy(
                         isLoading = false,
@@ -56,14 +60,18 @@ class UserViewModel @Inject constructor(
                     )
                 }
 
-                // --- Ritorna a Pronto dopo 5 secondi ---
+                // Ritorna a Pronto dopo 5 secondi
                 delay(5000)
                 _uiState.update { it.copy(statusMessage = "Pronto") }
             }
         }
     }
 
-    // --- AZIONI ATTIVE DELL'UTENTE ---
+    // --- AZIONI ATTIVE DELL'UTENTE (Intent) ---
+    /**
+     * Attiva o disattiva la modalità lavoratore.
+     * L'aggiornamento sul DB innescherà automaticamente il NetworkService per l'invio dell'Heartbeat.
+     */
     fun toggleHelperMode(isActive: Boolean, category: String = "Generico") {
         viewModelScope.launch {
             try {
@@ -74,6 +82,9 @@ class UserViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Innesca la Fase 3 del protocollo SamaritanCloud (Help-Request).
+     */
     fun sendHelpRequest(category: String, radius: Double) {
         viewModelScope.launch {
             val user = _uiState.value.currentUser ?: return@launch
@@ -92,9 +103,9 @@ class UserViewModel @Inject constructor(
                     )
                 }
 
+                // --- TIMEOUT ASINCRONO (Fail-Safe) ---
                 launch {
-
-                    delay(30000) // Aspetta 30 secondi
+                    delay(30000)
                     // Se dopo 30 secondi sta ancora cercando, dichiara il fallimento
                     if (_uiState.value.statusMessage == "Match in corso, cercando lavoratori") {
                         _uiState.update {
@@ -120,7 +131,6 @@ class UserViewModel @Inject constructor(
         }
     }
 
-    // Per configurazione iniziale helper mode
     fun updateHelperDraft(category: String) {
         _uiState.update { it.copy(helperCategoryDraft = category) }
     }

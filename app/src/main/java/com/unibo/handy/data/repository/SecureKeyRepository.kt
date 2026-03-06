@@ -10,10 +10,17 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import java.math.BigInteger
 import javax.inject.Inject
+import javax.inject.Singleton
 
-// Estensione per inizializzare il DataStore
+// Estensione delegata per inizializzare il DataStore (moderna alternativa asincrona alle SharedPreferences)
 private val Context.dataStore by preferencesDataStore(name = "secure_keys")
 
+/**
+ * Repository dedicato alla persistenza sicura delle chiavi crittografiche (Encryption at Rest).
+ * Utilizza il DataStore di Jetpack combinato con l'Hardware Keystore di Android (ICryptoManager)
+ * per garantire che le chiavi asimmetriche di Paillier non siano mai esposte in chiaro sul disco.
+ */
+@Singleton
 class SecureKeyRepository @Inject constructor(
     private val context: Context,
     private val cryptoManager: ICryptoManager
@@ -24,12 +31,17 @@ class SecureKeyRepository @Inject constructor(
     }
 
     /**
-     * Simula il Trusted Third Party (TTP).
-     * Inietta le chiavi condivise di gruppo se il DataStore è vuoto.
+     * Simula il Trusted Third Party (TTP) o Key Generation Center.
+     * Nell'architettura reale SamaritanCloud, queste chiavi verrebbero scaricate in modo sicuro
+     * dal server tramite TLS durante la fase di registrazione. Qui vengono iniettate localmente al primo avvio.
      */
     suspend fun initKeysIfEmpty() {
         val existingModulus = getPublicModulus()
         if (existingModulus == null) {
+            // ATTENZIONE (Ablation Test):
+            // Questi sono valori "giocattolo"
+            // Devono essere sostituiti con stringhe di chiavi reali a 1024 o 2048 bit generate
+            // tramite PaillierEncryption.keygen() prima di raccogliere i dati prestazionali!
             val mockPublicModulus = BigInteger("3233")
             val mockPrivateKey = BigInteger("2753")
 
@@ -37,7 +49,10 @@ class SecureKeyRepository @Inject constructor(
         }
     }
 
-    // Salva le chiavi criptandole e codificandole in Base64
+    /**
+     * Cifra la chiave privata e il modulo pubblico a livello di byte usando AES (tramite Keystore)
+     * e li salva nel DataStore codificati in Base64 per compatibilità di formato.
+     */
     suspend fun saveKeys(privateKey: BigInteger, modulus: BigInteger) {
         val encryptedPrivKey = cryptoManager.encrypt(privateKey.toByteArray())
         val encryptedModulus = cryptoManager.encrypt(modulus.toByteArray())
@@ -48,7 +63,10 @@ class SecureKeyRepository @Inject constructor(
         }
     }
 
-    // Recupera la chiave privata
+    /**
+     * Recupera la chiave privata dal DataStore, la decodifica dal formato Base64
+     * e la decifra in modo trasparente tramite l'Hardware Keystore.
+     */
     suspend fun getPrivateKey(): BigInteger? {
         val encryptedBase64 = context.dataStore.data.map { it[PRIVATE_KEY] }.first() ?: return null
         val encryptedBytes = Base64.decode(encryptedBase64, Base64.DEFAULT)
@@ -56,6 +74,9 @@ class SecureKeyRepository @Inject constructor(
         return BigInteger(decryptedBytes)
     }
 
+    /**
+     * Recupera il modulo pubblico di gruppo dal DataStore.
+     */
     suspend fun getPublicModulus(): BigInteger? {
         val encryptedBase64 = context.dataStore.data.map { it[PUBLIC_MODULUS] }.first() ?: return null
         val encryptedBytes = Base64.decode(encryptedBase64, Base64.DEFAULT)

@@ -18,10 +18,9 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Repository centrale per il protocollo SamaritanCloud.
- * Gestisce:
- * 1. Ruolo Richiedente: Invio Help-Request (Beta+).
- * 2. Ruolo Service Client: Custodia profili offuscati e Calcolo Match
+ * Repository core per l'orchestrazione degli eventi del protocollo SamaritanCloud.
+ * Gestisce il salvataggio dei profili offuscati (Service Client) e l'emissione
+ * di eventi reattivi verso l'interfaccia utente al verificarsi di un match.
  */
 @Singleton
 class MatchingRepository @Inject constructor(
@@ -30,7 +29,8 @@ class MatchingRepository @Inject constructor(
     private val storedClientDao: StoredClientDAO
 ) {
     private val gson: Gson = Gson()
-    // Flow per notificare la UI di nuovi match
+
+    // Canali di comunicazione reattiva verso la UI
     private val _matchEvents = MutableSharedFlow<Pair<String, String>>(replay = 0)
     val matchEvents = _matchEvents.asSharedFlow()
 
@@ -68,7 +68,10 @@ class MatchingRepository @Inject constructor(
         webSocketManager.sendMessage(jsonString)
     }
 
-    // Gestisce il salvataggio dei profili offuscati da custodire per il matching
+    /**
+     * Fase 2b: Il Service Client (Helper) riceve e custodisce il profilo di un Target.
+     * Viene eseguito in un thread I/O per non bloccare il WebSocket listener.
+     */
     suspend fun handleStoreProfile(payload: StoreProfileDTO) = withContext(Dispatchers.IO) {
         val profileBlob = ProfileData(
             reblurredX = payload.reblurredX,
@@ -78,13 +81,11 @@ class MatchingRepository @Inject constructor(
             rating = payload.rating
         )
 
-        // Creazione dell'entità per il DB locale
         val entity = StoredClientEntity(
             clientId = payload.targetId,
             profile = profileBlob
         )
 
-        // Salvataggio nel DB
         storedClientDao.saveProfile(entity)
     }
 

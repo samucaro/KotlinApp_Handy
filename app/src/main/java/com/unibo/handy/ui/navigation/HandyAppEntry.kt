@@ -4,7 +4,6 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.os.VibrationEffect
 import android.os.VibratorManager
-import android.util.Log
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -23,7 +22,6 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.unibo.handy.data.network.NetworkStatus
-import com.unibo.handy.ui.navigation.MainScreen
 import com.unibo.handy.ui.components.OfflineBlockScreen
 import com.unibo.handy.ui.features.auth.SignUpScreen
 import com.unibo.handy.ui.features.chat.SingleChatScreen
@@ -33,7 +31,6 @@ import com.unibo.handy.ui.features.chat.ChatViewModel
 import com.unibo.handy.ui.features.match.MatchViewModel
 import com.unibo.handy.ui.features.user.UserViewModel
 
-// Indirizzi delle rotte (schermate) con Jetpack Navigation
 sealed class Screen(val route: String) {
     object Splash : Screen("splash_screen")
     object SignUp : Screen("signup_screen")
@@ -43,19 +40,19 @@ sealed class Screen(val route: String) {
     }
 }
 
-// --- ENTRY POINT ---
+/**
+ * Entry Point Navigazionale dell'App.
+ * Definisce il grafo di navigazione e gestisce gli overlay globali (es. Server Offline).
+ */
 @SuppressLint("ServiceCast")
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HandyAppEntry() {
     val navController = rememberNavController()
-
     val userVM: UserViewModel = hiltViewModel()
     val netStatus by userVM.networkStatus.collectAsState()
 
-    // --- LOGICA DI BLOCCO ---
     Box(modifier = Modifier.fillMaxSize()) {
-        // Contenitore che cambia schermata
         NavHost(
             navController = navController,
             startDestination = Screen.Splash.route
@@ -65,15 +62,12 @@ fun HandyAppEntry() {
                 val authVM: AuthViewModel = hiltViewModel()
                 val authState by authVM.authState.collectAsState()
 
-                //Naviga appena lo stato cambia
                 LaunchedEffect(authState) {
                     if (authState == LOGGED_IN) {
-                        // Entra subito nella Home se loggato
                         navController.navigate(Screen.Home.route) {
                             popUpTo(Screen.Splash.route) { inclusive = true }
                         }
                     } else if (authState == NOT_LOGGED) {
-                        // Nessun utente -> Va al SignUp (non serve la rete per mostrare la UI)
                         navController.navigate(Screen.SignUp.route) {
                             popUpTo(Screen.Splash.route) { inclusive = true }
                         }
@@ -82,13 +76,11 @@ fun HandyAppEntry() {
                 SplashScreen()
             }
 
-            // ROTTA 2: Schermata di Signup
+            // --- ROTTA 2: SIGN UP ---
             composable(Screen.SignUp.route) {
-                // Inietto AuthViewModel
                 val authVM: AuthViewModel = hiltViewModel()
                 val state by authVM.uiState.collectAsState()
 
-                // Controllo navigazione
                 LaunchedEffect(state.isSignUpSuccess) {
                     if (state.isSignUpSuccess) {
                         navController.navigate(Screen.Home.route) {
@@ -106,37 +98,28 @@ fun HandyAppEntry() {
                 )
             }
 
-            // ROTTA 3: DASHBOARD
+            // --- ROTTA 3: DASHBOARD PRINCIPALE ---
             composable(Screen.Home.route) {
-                // Inietto ViewModel
                 val userVM: UserViewModel = hiltViewModel()
                 val userState by userVM.uiState.collectAsState()
+
                 val matchVM: MatchViewModel = hiltViewModel()
                 val matchState by matchVM.uiState.collectAsState()
                 val pendingMatches by matchVM.pendingMatches.collectAsState()
                 val activeChatsAsHelper by matchVM.activeChatsAsHelper.collectAsState()
                 val activeChatsAsRequester by matchVM.activeChatsAsRequester.collectAsState()
 
-                val context =
-                    LocalContext.current // Serve per accedere al sistema di vibrazione
+                val context = LocalContext.current
 
-                // Gestisce l'apertura della chat se clicco sul popup del match
+                // Feedback (Vibrazione) retrocompatibile
                 LaunchedEffect(matchState.incomingMatchId) {
                     if (matchState.showMatchPopup && matchState.incomingMatchId != null) {
-                        // Vibrazione
-                        val vibratorManager =
-                            context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager
+                        val vibratorManager = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager
                         val vibrator = vibratorManager.defaultVibrator
-                        vibrator.vibrate(
-                            VibrationEffect.createOneShot(
-                                500,
-                                VibrationEffect.DEFAULT_AMPLITUDE
-                            )
-                        )
-                        Log.d(
-                            "HandyNav",
-                            "Popup mostrato per match: ${matchState.incomingMatchId}"
-                        )
+
+                        if (vibrator.hasVibrator()) {
+                            vibrator.vibrate(VibrationEffect.createOneShot(500, VibrationEffect.DEFAULT_AMPLITUDE))
+                        }
                     }
                 }
 
@@ -154,26 +137,23 @@ fun HandyAppEntry() {
                     onDismissPopup = matchVM::dismissPopup,
                     onAcceptMatch = { matchId ->
                         val requesterId = matchState.incomingRequesterId ?: ""
-                        // 1. Avvisa il ViewModel (aggiorna DB, manda notifica al server)
                         matchVM.acceptMatch(matchId, requesterId)
-
-                        // 2. NAVIGA subito alla chat
                         navController.navigate(Screen.ChatDetail.createRoute(matchId))
                     },
                     onRejectMatch = matchVM::rejectMatch,
                     onSearchParamUpdate = userVM::updateSearchParameters,
-                    onHelperDraftChange = userVM::updateHelperDraft
+                    onHelperDraftChange = userVM::updateHelperDraft,
+                    onLogout = userVM::logout
                 )
             }
 
-            // ROTTA 4: DETTAGLIO CHAT
+            // --- ROTTA 4: DETTAGLIO CHAT ---
             composable(Screen.ChatDetail.route) { backStackEntry ->
                 val matchId = backStackEntry.arguments?.getString("matchId") ?: return@composable
                 val chatVM: ChatViewModel = hiltViewModel()
                 val userVM: UserViewModel = hiltViewModel()
                 val userState by userVM.uiState.collectAsState()
 
-                // Carica i messaggi per questo ID specifico
                 LaunchedEffect(matchId) {
                     chatVM.loadMessages(matchId)
                 }
@@ -187,7 +167,7 @@ fun HandyAppEntry() {
             }
         }
 
-        // 2. SE IL SERVER CADE, DISEGNIAMO LA SCHERMATA ROSSA "SOPRA" TUTTO IL RESTO
+        // --- GLOBAL OVERLAY: GESTIONE OFFLINE ---
         if (netStatus is NetworkStatus.Disconnected || netStatus is NetworkStatus.Reconnecting) {
             Surface(
                 modifier = Modifier.fillMaxSize(),

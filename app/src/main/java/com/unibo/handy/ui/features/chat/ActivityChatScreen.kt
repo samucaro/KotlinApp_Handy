@@ -146,7 +146,6 @@ fun ChatListScreen(
             colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
         )
 
-        // TABS PER DIVIDERE I RUOLI
         SecondaryTabRow(
             selectedTabIndex = selectedTabIndex,
             containerColor = Color.White,
@@ -210,7 +209,6 @@ fun ActiveChatItem(match: MatchEntity, onClick: (String) -> Unit) {
 
         Spacer(modifier = Modifier.width(16.dp))
 
-        // Nome e Ultimo Messaggio (Simulato per ora)
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 match.username,
@@ -218,14 +216,13 @@ fun ActiveChatItem(match: MatchEntity, onClick: (String) -> Unit) {
                 fontWeight = FontWeight.Bold
             )
             Text(
-                text = "Tocca per chattare...", // Qui in futuro metteremo l'ultimo messaggio vero
+                text = "Tocca per chattare...",
                 style = MaterialTheme.typography.bodyMedium,
                 color = Color.Gray,
                 maxLines = 1
             )
         }
 
-        // Orario
         val timeFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
         Text(
             text = timeFormat.format(match.timestamp),

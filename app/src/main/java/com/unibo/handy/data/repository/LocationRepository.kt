@@ -7,8 +7,8 @@ import com.unibo.handy.data.network.dto.HeartBeatDTO
 import javax.inject.Inject
 
 /**
- * Gestisce l'interazione con il sensore GPS e l'invio periodico della posizione (Heartbeat).
- * Implementa la Fase 2 del protocollo: Profile-Update-Request.
+ * Gestisce l'interazione con l'hardware GPS e la trasmissione periodica della posizione.
+ * Implementa la logica di trasporto per la Fase 2 del protocollo: Profile-Update-Request.
  */
 class LocationRepository @Inject constructor(
     private val locationClient: LocationClientSensor,
@@ -19,6 +19,10 @@ class LocationRepository @Inject constructor(
         return locationClient.getCurrentLocation()
     }
 
+    /**
+     * Invia le coordinate offuscate (Beta-) e il rumore cifrato al server cloud tramite REST.
+     * Metodo fail-fast: lancia un'eccezione se il server non risponde con 200 OK.
+     */
     suspend fun postHeartbeatToNetwork(
         userId: String,
         blurredX: Long,

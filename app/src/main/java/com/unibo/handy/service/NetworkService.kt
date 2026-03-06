@@ -17,6 +17,7 @@ import com.unibo.handy.HandyApp
 import com.unibo.handy.data.network.MessageDispatcher
 import com.unibo.handy.data.network.WebSocketManager
 import com.unibo.handy.data.repository.UserRepository
+import com.unibo.handy.data.repository.ChatRepository
 import com.unibo.handy.domain.usecase.profile.SendHeartbeatUseCase
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
@@ -31,17 +32,23 @@ import kotlinx.coroutines.launch
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 
+/**
+ * Cuore dell'elaborazione in background dell'app.
+ * Implementa il pattern Facade per nascondere la complessità della rete (WebSocket)
+ * e della schedulazione (WorkManager + Coroutines) al resto dell'applicazione.
+ */
 @AndroidEntryPoint
-// Funge da pattern FACADE
 class NetworkService : Service() {
+    // Scope legato al ciclo di vita del Servizio, indipendente dalla UI
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
-    // Serve a verificare se il servizio è già in esecuzione e impedire di creare duplicati
+
     private var backgroundJob: Job? = null
     private var heartbeatJob: Job? = null
 
-    // Dipendenze
     @Inject
     lateinit var userRepo: UserRepository
+    @Inject
+    lateinit var chatRepo: ChatRepository
     @Inject
     lateinit var sendHeartbeatUseCase: SendHeartbeatUseCase
     @Inject
@@ -50,12 +57,13 @@ class NetworkService : Service() {
     lateinit var webSocketManager: WebSocketManager
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        // Configurazione notifica Foreground
+        // Configurazione della notifica persistente
         val notification = NotificationCompat.Builder(this, HandyApp.CHANNEL_ID)
             .setContentTitle("Handy Background")
             .setContentText("Ricerca in corso...")
             .setSmallIcon(R.drawable.handy_icon)
             .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setOngoing(true)
             .build()
 
         try {
@@ -70,6 +78,8 @@ class NetworkService : Service() {
         }
 
         startBackgroundLogic()
+
+        // START_STICKY istruisce l'OS a riavviare il servizio se viene ucciso per mancanza di RAM
         return START_STICKY
     }
 
@@ -77,12 +87,10 @@ class NetworkService : Service() {
         backgroundJob?.cancel()
 
         backgroundJob = scope.launch {
+            // Reagisce dinamicamente ai cambiamenti di stato dell'utente
             userRepo.currentUserFlow.collectLatest { user ->
 
-                // CASO LOGOUT
                 if (user == null) {
-                    Log.d("HandyService", "Logout: Stop dispatcher and colse socket")
-                    //dispatcher.stopDispatching()
                     webSocketManager.close()
                     WorkManager.getInstance(applicationContext).cancelUniqueWork("HeartbeatWork")
                     return@collectLatest
@@ -92,16 +100,16 @@ class NetworkService : Service() {
                 launch {
                     try {
                         webSocketManager.connect(user.userId)
+                        chatRepo.syncPendingMessages()
                     } catch (e: Exception) {
                         Log.e("HandyService", "WebSocket connection error", e)
                     }
                 }
 
-                // 2. Ascolto del WebSocket e invio al Dispatcher
+                // 2. Ascolto del WebSocket e instradamento messaggi
                 launch {
                     webSocketManager.incomingMessages.collectLatest { rawMessage ->
                         try {
-                            // 1. Parsing preliminare solo per ottenere "type" e "payload" come JsonElement
                             val root = JsonParser.parseString(rawMessage).asJsonObject
                             val action = root.get("type")?.asString
                             val payload = root.get("payload")?.toString()
@@ -115,31 +123,28 @@ class NetworkService : Service() {
                     }
                 }
 
-                // 3. WORKMANAGER HEARTBEAT
+                // 3. GESTIONE HEARTBEAT (Invio posizione offuscata)
                 if (user.helpModeActive) {
-                    // --- STRATEGIA 1: BACKGROUND (WorkManager a 15 min) ---
-                    // Configura il WorkManager per eseguire l'heartbeat solo se c'è connessione internet
+                    // --- STRATEGIA 1: BACKGROUND (WorkManager) ---
                     val constraints = Constraints.Builder()
                         .setRequiredNetworkType(NetworkType.CONNECTED)
                         .build()
 
                     val heartbeatRequest = PeriodicWorkRequestBuilder<HeartbeatWorker>(
                         15,
-                        TimeUnit.MINUTES
+                        TimeUnit.MINUTES // Limite minimo imposto da Android
                     )
                         .setConstraints(constraints)
                         .setInitialDelay(15, TimeUnit.MINUTES)
                         .build()
 
-                    // Se c'è già un worker con lo stesso nome, UPDATE lo sovrascrive con le nuove impostazioni
                     WorkManager.getInstance(applicationContext).enqueueUniquePeriodicWork(
                         "HeartbeatWork",
                         ExistingPeriodicWorkPolicy.UPDATE,
                         heartbeatRequest
                     )
 
-                    // --- STRATEGIA 2: FOREGROUND (Coroutine a 5 min) ---
-                    // Questo gira solo finché l'app/servizio è vivo
+                    // --- STRATEGIA 2: FOREGROUND ATTIVO (Coroutine) ---
                     heartbeatJob?.cancel()
                     heartbeatJob = launch {
                         while (isActive) {
@@ -149,6 +154,7 @@ class NetworkService : Service() {
                         }
                     }
                 } else {
+                    // Spegnimento reattivo se l'utente disattiva la modalità Helper
                     WorkManager.getInstance(applicationContext).cancelUniqueWork("HeartbeatWork")
                     heartbeatJob?.cancel()
                 }

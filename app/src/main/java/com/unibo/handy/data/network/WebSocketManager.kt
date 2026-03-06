@@ -3,6 +3,7 @@ package com.unibo.handy.data.network
 import android.util.Log
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.delay
@@ -18,7 +19,9 @@ import okhttp3.WebSocket
 import okhttp3.WebSocketListener
 import kotlin.math.pow
 
-// 3 STATI POSSIBILI DELLA RETE
+/**
+ * Macchina a stati finiti che rappresenta lo stato della connettività in tempo reale.
+ */
 sealed interface NetworkStatus {
     object Initializing : NetworkStatus // Fase di Boot
     object Connected : NetworkStatus // Online
@@ -26,15 +29,24 @@ sealed interface NetworkStatus {
     object Reconnecting : NetworkStatus // Offline prima di tentativo
 }
 
+/**
+ * Gestore centralizzato per la comunicazione bidirezionale (Full-Duplex) tramite WebSocket.
+ * Mantiene la connessione persistente con il server Python e gestisce le disconnessioni involontarie.
+ */
 class WebSocketManager(private val client: OkHttpClient) {
     private var reconnectAttemptCount = 0
     private var webSocket: WebSocket? = null
-    private var reconnectJob: kotlinx.coroutines.Job? = null
-    // Scope per gestire i tentativi di riconnessione, ogni tentativo prende un nuovo thread dal thread pool
+    private var reconnectJob: Job? = null
+
+    // Scope dedicato per gestire i tentativi di riconnessione asincroni
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
+    // StateFlow per esporre lo stato della rete alla UI (reattività)
     private val _networkStatus = MutableStateFlow<NetworkStatus>(NetworkStatus.Initializing)
     val networkStatus = _networkStatus.asStateFlow()
+
+    // SharedFlow per emettere i messaggi in arrivo.
+    // Usa un buffer circolare per gestire picchi di traffico (Backpressure).
     private val _incomingMessages = MutableSharedFlow<String>(
         replay = 0,
         extraBufferCapacity = 10,
@@ -45,27 +57,27 @@ class WebSocketManager(private val client: OkHttpClient) {
     private var currentUserId: String? = null
     private var isIntentionalClose = false
 
-    // Costante per l'URL (Emulator localhost)
     companion object {
+        // Indirizzo di loopback per l'emulatore Android verso localhost
         private const val WS_URL = "ws://10.0.2.2:8000/ws/"
     }
 
+    /**
+     * Inizia il processo di handshaking TCP/WebSocket.
+     * Funzione idempotente: ignora le chiamate se una connessione è già attiva.
+     */
     fun connect(idUser: String, isSilentReconnect: Boolean = false) {
-        // Idempotenza: se  già connesso o in fase di connessione, evita duplicati
         if (webSocket != null) {
-            Log.d("HandyWS", "Socket already connected")
+            Log.d("HandyWS", "Socket già connesso o in fase di connessione.")
             return
         }
 
         currentUserId = idUser
         isIntentionalClose = false
 
-        // Cambia stato solo se non è un tentativo in background
         if (!isSilentReconnect && _networkStatus.value != NetworkStatus.Reconnecting) {
             _networkStatus.value = NetworkStatus.Initializing
         }
-
-        Log.d("HandyWS", "--- NUOVO TENTATIVO DI CONNESSIONE LANCIATO ---")
 
         val request = Request.Builder()
             .url("$WS_URL$idUser")
@@ -75,19 +87,26 @@ class WebSocketManager(private val client: OkHttpClient) {
         webSocket = client.newWebSocket(request, HandyWebSocketListener())
     }
 
-    // Metodo per inviare messaggi di chat tra helepr e richiedente al servere
+    /**
+     * Invia un payload JSON al server.
+     * @return true se il messaggio è stato accodato nel buffer di rete, false altrimenti.
+     */
     fun sendMessage(text: String): Boolean {
         val ws = webSocket
         if (ws != null) {
             return ws.send(text)
         } else {
-            Log.w("HandyWS", "Socket not connected")
+            Log.w("HandyWS", "Impossibile inviare: Socket disconnesso.")
             return false
         }
     }
 
+    /**
+     * Termina intenzionalmente la connessione.
+     * Previene l'innesco della logica di auto-riconnessione.
+     */
     fun close() {
-        Log.i("HandyWS", "Closing connection")
+        Log.i("HandyWS", "Chiusura intenzionale della connessione.")
         isIntentionalClose = true
         webSocket?.close(1000, "Logout/App Closed")
         webSocket = null
@@ -95,82 +114,75 @@ class WebSocketManager(private val client: OkHttpClient) {
         _networkStatus.value = NetworkStatus.Disconnected
     }
 
+    /**
+     * Forza un reset manuale della rete aggirando i timer di backoff.
+     */
     fun resetAndReconnect() {
-        Log.w("HandyWS", "Manual resetting connection")
+        Log.w("HandyWS", "Reset manuale della connessione richiesto.")
         isIntentionalClose = false
-
-        // 1. CANCELLA l'eventuale riconnessione automatica in attesa
         reconnectJob?.cancel()
-        // 2. AZZERA il contatore per la demo, così riparte subito senza aspettare minuti
         reconnectAttemptCount = 0
 
-        // Se l'utente clicca il bottone manuale, forza lo stato Initializing
-        // per dargli un feedback visivo che sta provando
         webSocket?.cancel()
         webSocket = null
 
         _networkStatus.value = NetworkStatus.Reconnecting
-
         currentUserId?.let { connect(it) }
     }
 
-    // Inner class per pulizia del codice
+    /**
+     * Listener interno asincrono che reagisce agli eventi della libreria OkHttp.
+     */
     private inner class HandyWebSocketListener : WebSocketListener() {
         override fun onOpen(webSocket: WebSocket, response: Response) {
             reconnectAttemptCount = 0
-            Log.i("HandyWS", "--> CONNECTED TO SERVER")
+            Log.i("HandyWS", "--> CONNESSIONE STABILITA COL SERVER")
             _networkStatus.value = NetworkStatus.Connected
         }
 
         override fun onMessage(webSocket: WebSocket, text: String) {
-            // Emette il messaggio nel Flow. Il Dispatcher lo raccoglierà.
+            // tryEmit è non-bloccante, essenziale perché in un thread di OkHttp
             _incomingMessages.tryEmit(text)
         }
 
         override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-            Log.e("HandyWS", "Connection error: ${t.message}")
+            Log.e("HandyWS", "Errore di rete: ${t.message}")
             this@WebSocketManager.webSocket = null
-
             _networkStatus.value = NetworkStatus.Disconnected
 
-            if (!isIntentionalClose) {
-                attemptReconnect()
-            }
+            if (!isIntentionalClose) attemptReconnect()
         }
 
         override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
-            Log.d("HandyWS", "Connection closed: $reason")
+            Log.d("HandyWS", "Connessione chiusa dal server: $reason")
             this@WebSocketManager.webSocket = null
-
             _networkStatus.value = NetworkStatus.Disconnected
 
-            if (!isIntentionalClose) {
-                attemptReconnect()
-            }
+            if (!isIntentionalClose) attemptReconnect()
         }
     }
 
+    /**
+     * Implementa un algoritmo di Exponential Backoff per evitare di saturare
+     * il server e la batteria dello smartphone con continue richieste di connessione.
+     */
     private fun attemptReconnect() {
         if (isIntentionalClose || currentUserId == null) return
 
-        // Backoff esponenziale: 3s, 6s, 12s, 24s... massimo 1 minuto
+        // Formula: 2000ms * 2^tentativi, con un tetto massimo (cap) di 60 secondi
         val backoffDelay = (2000L * 2.0.pow(reconnectAttemptCount.toDouble())).toLong()
-            .coerceAtMost(60000L) // Cap a 60 secondi
+            .coerceAtMost(60000L)
 
         reconnectAttemptCount++
-        Log.w("HandyWS", "Reconnection try ${backoffDelay/1000}s (Tentative: $reconnectAttemptCount)")
+        Log.w("HandyWS", "Nuovo tentativo fra ${backoffDelay / 1000}s (Tentativo: $reconnectAttemptCount)")
 
-        // Cancella eventuali job precedenti per sicurezza
         reconnectJob?.cancel()
 
+        // Lo scope dedicato garantisce che il delay non blocchi il Main Thread
         reconnectJob = scope.launch {
-            Log.w("HandyWS", "Riconnection attempt...")
             delay(backoffDelay)
             if (!isIntentionalClose && currentUserId != null) {
                 webSocket?.cancel()
-                // Riprova ricorsivamente (ma in un nuovo thread grazie a launch)
-                // Impostare webSocket a null prima di chiamare connect non serve se gestito nei listener,
-                // ma per sicurezza  assicura che sia pulito
                 webSocket = null
                 connect(currentUserId!!, isSilentReconnect = true)
             }

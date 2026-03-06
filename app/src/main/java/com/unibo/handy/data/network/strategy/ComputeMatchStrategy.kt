@@ -8,25 +8,29 @@ import com.unibo.handy.domain.usecase.match.ComputeMatchUseCase
 import com.unibo.handy.service.notifications.NotificationHelper
 import javax.inject.Inject
 
+/**
+ * Strategia core del protocollo SamaritanCloud.
+ * Invocata quando l'Helper riceve una Tupla crittografica da risolvere (Help-Request).
+ */
 class ComputeMatchStrategy @Inject constructor(
     private val computeMatchUseCase: ComputeMatchUseCase,
     private val matchingRepo: MatchingRepository,
     private val notificationHelper: NotificationHelper,
     private val gson: Gson
 ) : MessageStrategy {
+
     override suspend fun handle(payload: String) {
         try {
+            // 1. Deserializzazione della tupla matematica
             val tuple = gson.fromJson(payload, TupleDTO::class.java)
 
-            // Invocazione del Use Case per il calcolo del match
+            // 2. Invocazione del Livello di Dominio (PrivacyEngine via UseCase)
             val isCompatible = computeMatchUseCase(tuple)
 
-            // Se il risultato è positivo, informa il server
+            // 3. Risoluzione positiva: notifica server e utente
             if (isCompatible) {
                 matchingRepo.saveMatchToDb(tuple.t1RequesterId, tuple.t2TargetId)
                 matchingRepo.notifyServerOfMatch(tuple.t1RequesterId, tuple.t2TargetId)
-
-                // Lancia la notifica al sistema operativo
                 notificationHelper.showMatchNotification()
             }
         } catch (e: Exception) {

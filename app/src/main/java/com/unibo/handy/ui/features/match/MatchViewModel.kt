@@ -15,6 +15,11 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+/**
+ * ViewModel delegato alla gestione del ruolo "Helper".
+ * Orchestra l'arrivo di nuove richieste di aiuto, l'accettazione/rifiuto dei match
+ * e l'alimentazione delle liste delle chat attive.
+ */
 @HiltViewModel
 class MatchViewModel @Inject constructor(
     private val matchingRepository: MatchingRepository,
@@ -24,11 +29,9 @@ class MatchViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(MatchUiState())
     val uiState = _uiState.asStateFlow()
 
-    // Flow dei match in attesa per la lista nella Home
     val pendingMatches = matchDao.getPendingMatches()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    // FLUSSO SDOPPIATO PER LE CHAT
     val activeChatsAsHelper = matchDao.getActiveChatsAsHelper()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
@@ -36,7 +39,9 @@ class MatchViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     init {
-        // Osserva eventi di Match (WebSocket -> Repo -> VM)
+        // --- EVENT LISTENER (Reattività di Rete) ---
+        // Rimane in ascolto di eventi emessi dal Repository quando il PrivacyEngine
+        // risolve con successo una Tupla (Distanza < Tolleranza)
         viewModelScope.launch {
             matchingRepository.matchEvents.collectLatest { matchData ->
                 _uiState.update {
@@ -51,7 +56,7 @@ class MatchViewModel @Inject constructor(
         }
     }
 
-    // --- AZIONI ---
+    // --- AZIONI INTENZIONALI (User Intents) ---
     fun acceptMatch(matchId: String, requesterId: String) {
         viewModelScope.launch {
             chatRepository.acceptMatch(matchId, requesterId)

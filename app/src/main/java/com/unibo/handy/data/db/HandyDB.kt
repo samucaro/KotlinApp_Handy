@@ -1,8 +1,6 @@
 package com.unibo.handy.data.db
 
-import android.content.Context
 import androidx.room.Database
-import androidx.room.Room
 import androidx.room.RoomDatabase
 import com.unibo.handy.data.db.dao.ChatDAO
 import com.unibo.handy.data.db.dao.MatchDAO
@@ -14,6 +12,10 @@ import com.unibo.handy.data.db.entity.ChatMessagesEntity
 import com.unibo.handy.data.db.entity.MatchEntity
 import androidx.room.TypeConverters
 
+/**
+ * Entry point principale per la persistenza dei dati relazionali (SQLite).
+ * Implementa il pattern Object-Relational Mapping (ORM) tramite la libreria Jetpack Room.
+ */
 @Database(
     entities = [
         UserEntity::class,
@@ -26,29 +28,10 @@ import androidx.room.TypeConverters
 )
 @TypeConverters(HandyTypeConverters::class)
 abstract class HandyDB : RoomDatabase() {
-    // per utilizzare le query sull'oggetto che implementa l'interfaccia
+
+    // Esposizione dei DAO (Data Access Objects) per l'interazione con le tabelle
     abstract fun userDao(): UserDAO
     abstract fun storedClientDao(): StoredClientDAO
     abstract fun matchDao(): MatchDAO
     abstract fun chatDao(): ChatDAO
-
-
-    companion object {
-        @Volatile
-        private var INSTANCE: HandyDB? = null
-
-        fun getDatabase(context: Context): HandyDB {
-            // Permette di evitare la creazione contemporanea del db
-            return INSTANCE ?: synchronized(this) {
-                val instance = Room.databaseBuilder(
-                    context.applicationContext,
-                    HandyDB::class.java,
-                    "handy_db"
-                ).fallbackToDestructiveMigration(false).build()
-                INSTANCE = instance
-                instance
-            }
-
-        }
-    }
 }

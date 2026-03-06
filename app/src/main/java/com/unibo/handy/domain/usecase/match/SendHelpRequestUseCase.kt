@@ -10,15 +10,15 @@ import kotlinx.coroutines.withContext
 import java.math.BigInteger
 import javax.inject.Inject
 
+/**
+ * Orchestratore per la Fase 3 del protocollo: Help-Request.
+ * Prepara la query spaziale cifrata del richiedente per innescare la ricerca di match.
+ */
 class SendHelpRequestUseCase @Inject constructor(
     private val locationRepository: LocationRepository,
     private val secureKeyRepository: SecureKeyRepository,
     private val userRepository: UserRepository
 ) {
-    /**
-     * FASE 3: HELP-REQUEST
-     * Metodo di invio richiesta di aiuto usa il canale Retrofit REST
-     */
     suspend operator fun invoke(
         userId: String,
         category: String,
@@ -27,18 +27,18 @@ class SendHelpRequestUseCase @Inject constructor(
         val location = locationRepository.getCurrentLocation() ?: throw Exception("GPS non disponibile")
         val modulus = secureKeyRepository.getPublicModulus() ?: throw Exception("Modulo pubblico mancante")
 
-        // 1. Blurring Matematico
+        // 1. Calcolo coordinate query e rumore spaziale
         val blurredData = PrivacyEngine.createHelpRequest(
             lat = location.latitude,
             lon = location.longitude,
             tol = tolerance
         )
 
-        // 2. Cifratura Paillier
+        // 2. Cifratura Omomorfica del rumore e della tolleranza
         val cipherBlur = PaillierEncryption.encrypt(BigInteger.valueOf(blurredData.encryptedR), modulus)
         val cipherTol = PaillierEncryption.encrypt(BigInteger.valueOf(blurredData.encryptedTol), modulus)
 
-        // 3. Passa i dati crittografati al Repository per l'invio di rete
+        // 3. Invio asincrono al server
         userRepository.postHelpRequestToNetwork(
             userId = userId,
             category = category,

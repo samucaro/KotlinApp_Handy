@@ -10,7 +10,8 @@ import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 /**
- * Use Case che orchestra il calcolo della distanza euclidea su campo finito.
+ * Orchestratore per la Fase 4 del protocollo: Distance-Computation.
+ * Risolve la tupla matematica ricevuta dal server confrontandola con il database locale.
  */
 class ComputeMatchUseCase @Inject constructor(
     private val secureKeyRepository: SecureKeyRepository,
@@ -19,11 +20,10 @@ class ComputeMatchUseCase @Inject constructor(
     suspend operator fun invoke(
         tupla: TupleDTO
     ): Boolean = withContext(Dispatchers.IO) {
-        // 1. Recupero le chiavi crittografiche
         val privateKey = secureKeyRepository.getPrivateKey() ?: throw Exception("Chiave privata mancante")
         val modulus = secureKeyRepository.getPublicModulus() ?: throw Exception("Modulo pubblico mancante")
 
-        // 2. Recupero il profilo offuscato salvato in precedenza
+        // Recupera il profilo offuscato (aggiornato in precedenza via Profile-Update)
         val storedEntity = storedClientDao.getProfile(tupla.t2TargetId)
         if (storedEntity == null) {
             Log.e("HandyMatch", "MATCH FALLITO: Non ho dati salvati per il Target ID ${tupla.t2TargetId}")
@@ -31,8 +31,8 @@ class ComputeMatchUseCase @Inject constructor(
         }
         val storedProfile = storedEntity.profile
 
-        // 3. Eseguo il calcolo matematico sul PrivacyEngine
         return@withContext try {
+            // Esecuzione del controllo crittografico sulla distanza
             PrivacyEngine.computeMatching(
                 t3x = tupla.t3BetaPlusX,
                 t3y = tupla.t3BetaPlusY,
@@ -45,7 +45,7 @@ class ComputeMatchUseCase @Inject constructor(
                 n = modulus
             )
         } catch (_: Exception) {
-            false // Ritorna falso in caso di errori crittografici
+            false
         }
     }
 }

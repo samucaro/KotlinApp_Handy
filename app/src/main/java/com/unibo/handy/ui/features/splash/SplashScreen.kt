@@ -20,17 +20,17 @@ import com.unibo.handy.R
 @Composable
 fun SplashScreen() {
     Box(
-        modifier = Modifier.Companion.fillMaxSize().background(Color(0xFF006C75)),
-        contentAlignment = Alignment.Companion.Center
+        modifier = Modifier.fillMaxSize().background(Color(0xFF006C75)),
+        contentAlignment = Alignment.Center
     ) {
         Image(
             painter = painterResource(id = R.drawable.handy_icon),
             contentDescription = "Logo Handy App",
-            modifier = Modifier.Companion
+            modifier = Modifier
                 .size(180.dp)
                 .padding(top = 16.dp)
                 .clip(CircleShape),
-            contentScale = ContentScale.Companion.Crop
+            contentScale = ContentScale.Crop
         )
     }
 }

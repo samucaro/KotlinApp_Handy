@@ -48,21 +48,17 @@ fun SingleChatScreen(
     myUserId: String,
     onBack: () -> Unit
 ) {
-    // Recupera i messaggi specifici per questo matchId
     val messages by viewModel.messages.collectAsState()
     var inputText by remember { mutableStateOf("") }
-    // Variabile per tracciare se è il primo caricamento
+
     var isInitialLoad by remember { mutableStateOf(true) }
     val listState = rememberLazyListState()
 
-    // Scroll automatico in basso quando arriva un messaggio
     LaunchedEffect(messages.size) {
         if (messages.isNotEmpty()) {
             if (isInitialLoad) {
-                // Primo caricamento: "teletrasporto" istantaneo all'ultimo messaggio senza scatti
                 listState.scrollToItem(messages.size - 1)
             } else {
-                // Nuovi messaggi: animazione fluida (scroll)
                 listState.animateScrollToItem(messages.size - 1)
             }
         }
@@ -74,7 +70,7 @@ fun SingleChatScreen(
                 title = {
                     Column {
                         Text("Chat", fontWeight = FontWeight.Bold)
-                        // Mostriamo l'ID o il Nome (in futuro passeremo il nome completo)
+
                         Text(
                             "Utente ${matchId.take(4)}...",
                             style = MaterialTheme.typography.bodySmall

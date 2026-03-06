@@ -11,25 +11,32 @@ import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withTimeoutOrNull
 import javax.inject.Inject
 
-/*
- * Classe intermediaria per ottenere la posizione dell'utente dai sensori dello smartphone tramite
- * FusedLocationProviderClient (Play Services)
+/**
+ * Hardware Abstraction Layer (HAL) per il tracciamento geografico.
+ * Incapsula la logica di comunicazione con il FusedLocationProviderClient di Google Play Services.
  */
 class LocationClientSensor @Inject constructor(
-    @ApplicationContext private val context: Context
+    @param:ApplicationContext private val context: Context
 ) {
-    // qui sotto al cofano, sfruttando questa API (FusedLocationProviderClient), viene fatta una
-    // chiamata alla HAL di Android per ottenere la posizione dell'utente
+    // Client ottimizzato che combina GPS, Wi-Fi e reti cellulari per bilanciare precisione e batteria
     private val fusedLocationClient = LocationServices.getFusedLocationProviderClient(context)
 
-    @SuppressLint("MissingPermission")
+    /**
+     * Recupera la posizione fisica esatta dell'utente sul globo terrestre.
+     * @return L'oggetto Location contenente latitudine e longitudine, o null in caso di fallimento.
+     */
+    @SuppressLint("MissingPermission") // I permessi vengono già garantiti e controllati in MainActivity
     suspend fun getCurrentLocation(): Location? {
         return try {
+            // Meccanismo di Fail-Safe: previene il blocco della Coroutine se l'hardware non risponde.
+            // Timeout impostato a 15 secondi (15_000 ms).
             withTimeoutOrNull(15_000) {
                 val request = CurrentLocationRequest.Builder()
+                    // PRIORITY_HIGH_ACCURACY forza l'accensione del chip GPS satellitare
                     .setPriority(Priority.PRIORITY_HIGH_ACCURACY)
                     .build()
 
+                // Converte l'API basata su Callback (Task) di Google Play Services in una Suspend Function nativa
                 fusedLocationClient.getCurrentLocation(request, null).await()
             }
         } catch (e: Exception) {

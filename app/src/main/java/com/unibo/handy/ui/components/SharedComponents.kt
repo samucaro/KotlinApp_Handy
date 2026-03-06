@@ -13,23 +13,18 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.NotificationsOff
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Surface
@@ -76,7 +71,7 @@ fun RadarAnimation() {
                 .background(HandyPrimary.copy(alpha = 0.3f))
         )
         Icon(
-            imageVector = Icons.Default.Settings, // Icona ingranaggio o simbolo helper
+            imageVector = Icons.Default.Settings,
             contentDescription = null,
             tint = Color.White,
             modifier = Modifier
@@ -159,33 +154,6 @@ fun MessageBubble(msg: ChatMessagesEntity, isMe: Boolean) {
                 )
             }
         }
-    }
-}
-
-@Composable
-fun EmptyStateMessage() {
-    Column(
-        modifier = Modifier.fillMaxSize(),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Icon(
-            imageVector = Icons.Default.NotificationsOff,
-            contentDescription = null,
-            modifier = Modifier.size(80.dp),
-            tint = Color.LightGray
-        )
-        Spacer(modifier = Modifier.height(16.dp))
-        Text(
-            text = "Nessuna attività recente",
-            style = MaterialTheme.typography.titleMedium,
-            color = Color.Gray
-        )
-        Text(
-            text = "Quando troverai un match, apparirà qui.",
-            style = MaterialTheme.typography.bodySmall,
-            color = Color.LightGray
-        )
     }
 }
 

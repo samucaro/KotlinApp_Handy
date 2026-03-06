@@ -11,20 +11,12 @@ import kotlinx.coroutines.flow.Flow
 interface UserDAO {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertUser(user: UserEntity)
-
-    // Serve per l'aggiornamento automatico proveniente dall'UI
     @Query("SELECT * FROM user LIMIT 1")
     fun getUserFlow(): Flow<UserEntity?>
-
     @Query("SELECT * FROM user LIMIT 1")
     suspend fun getUserSnapshot(): UserEntity?
-
     @Query("UPDATE user SET helpModeActive = :isActive WHERE userId = :clientId")
     suspend fun updateHelperMode(clientId: String, isActive: Boolean)
-
     @Query("UPDATE user SET rating = :newRating WHERE userId = :clientId")
     suspend fun updateMyReputation(clientId: String, newRating: Int)
-
-    @Query("DELETE FROM user WHERE userId = :userId")
-    suspend fun deleteUser(userId: String)
 }

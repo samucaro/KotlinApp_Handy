@@ -1,9 +1,5 @@
 package com.unibo.handy.ui.navigation
 
-import android.Manifest
-import android.os.Build
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -17,7 +13,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
@@ -35,11 +30,13 @@ import com.unibo.handy.ui.features.user.UserUiState
 import com.unibo.handy.ui.features.home.HomeScreen
 import com.unibo.handy.ui.theme.HandyPrimary
 
+/**
+ * Wrapper architetturale per la navigazione interna (Bottom Navigation).
+ * Instrada lo stato dei ViewModel alle singole schermate (Hoisting dello stato).
+ */
 @Composable
 fun MainScreen(
-    // Dati dallo UserViewModel
     userState: UserUiState,
-    // Dati dal MatchViewModel
     matchState: MatchUiState,
     pendingMatches: List<MatchEntity>,
     activeChatsAsRequester: List<MatchEntity>,
@@ -51,51 +48,29 @@ fun MainScreen(
     onAcceptMatch: (String) -> Unit,
     onRejectMatch: (String) -> Unit,
     onSearchParamUpdate: (String, Float) -> Unit,
-    onHelperDraftChange: (String) -> Unit
+    onHelperDraftChange: (String) -> Unit,
+    onLogout: () -> Unit
 ) {
+    // Stato locale per la navigazione della BottomBar
     var selectedTab by remember { mutableIntStateOf(0) }
-
-    // Gestione Permessi
-    val permissionsToRequest = remember {
-        mutableListOf(
-            Manifest.permission.ACCESS_FINE_LOCATION,
-            Manifest.permission.ACCESS_COARSE_LOCATION
-        ).apply {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                add(Manifest.permission.POST_NOTIFICATIONS)
-            }
-        }.toTypedArray()
-    }
-
-    val launcher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestMultiplePermissions()
-    ) {}
-
-    // Chiede i permessi alla prima apertura dell'app
-    LaunchedEffect(Unit) {
-        launcher.launch(permissionsToRequest)
-    }
 
     Scaffold(
         bottomBar = {
             NavigationBar(containerColor = Color.White) {
                 NavBarItem(0, "Home", Icons.Default.Home, selectedTab) { selectedTab = 0 }
-                NavBarItem(
-                    1,
-                    "Attività",
-                    Icons.AutoMirrored.Filled.List,
-                    selectedTab
-                ) { selectedTab = 1 }
+                NavBarItem(1, "Attività", Icons.AutoMirrored.Filled.List, selectedTab) { selectedTab = 1 }
                 NavBarItem(2, "Chat", Icons.Default.Sms, selectedTab) { selectedTab = 2 }
                 NavBarItem(3, "Profilo", Icons.Default.Person, selectedTab) { selectedTab = 3 }
             }
         }
     ) { innerPadding ->
-        // Contenuto che cambia in base al Tab selezionato
         Box(
-            modifier = Modifier.padding(innerPadding).fillMaxSize()
+            modifier = Modifier
+                .padding(innerPadding)
+                .fillMaxSize()
                 .background(Color(0xFFF5F7F8))
         ) {
+            // Stato di caricamento (Wait for local DB)
             if (!userState.isInitialDataLoaded) {
                 Box(
                     modifier = Modifier.fillMaxSize(),
@@ -104,6 +79,7 @@ fun MainScreen(
                     CircularProgressIndicator(color = HandyPrimary)
                 }
             } else {
+                // Sostituzione dinamica del contenuto basata sul tab selezionato
                 when (selectedTab) {
                     0 -> HomeScreen(
                         currentUser = userState.currentUser,
@@ -120,20 +96,20 @@ fun MainScreen(
                         helperDraftCategory = userState.helperCategoryDraft,
                         onHelperDraftChange = onHelperDraftChange
                     )
-
                     1 -> ActivityScreen(
                         pendingMatches = pendingMatches,
                         onAccept = onAcceptMatch,
                         onReject = onRejectMatch
                     )
-
                     2 -> ChatListScreen(
                         activeChatsAsRequester = activeChatsAsRequester,
                         activeChatsAsHelper = activeChatsAsHelper,
                         onChatClick = onOpenChat
                     )
-
-                    3 -> ProfileScreen(currentUser = userState.currentUser)
+                    else -> ProfileScreen(
+                        currentUser = userState.currentUser,
+                        onLogout = onLogout
+                        )
                 }
             }
         }

@@ -42,7 +42,6 @@ fun OfflineBlockScreen(
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // Icona Grande
         Icon(
             imageVector = Icons.Default.CloudOff,
             contentDescription = "Server Offline",
@@ -52,7 +51,6 @@ fun OfflineBlockScreen(
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // Titolo
         Text(
             text = "Connessione Assente",
             fontSize = 24.sp,
@@ -62,7 +60,6 @@ fun OfflineBlockScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Messaggio esplicativo
         Text(
             text = "Sembra che il server Handy non sia raggiungibile.\n\n" +
                     "Per garantire la sicurezza e il corretto funzionamento del matching, " +
@@ -73,7 +70,6 @@ fun OfflineBlockScreen(
 
         Spacer(modifier = Modifier.height(48.dp))
 
-        // Bottone Riprova
         Button(
             onClick = onRetry,
             enabled = !isReconnecting,
@@ -84,7 +80,6 @@ fun OfflineBlockScreen(
             shape = RoundedCornerShape(12.dp)
         ) {
             if (isReconnecting) {
-                // Mostra icona caricamente
                 CircularProgressIndicator(
                     modifier = Modifier.size(24.dp),
                     color = Color.White,
@@ -93,7 +88,6 @@ fun OfflineBlockScreen(
                 Spacer(modifier = Modifier.width(12.dp))
                 Text("Connessione in corso...", color = Color.White)
             } else {
-                // Mostra tasto riprova
                 Icon(Icons.Default.Refresh, contentDescription = null)
                 Spacer(modifier = Modifier.width(8.dp))
                 Text("Riprova Connessione")

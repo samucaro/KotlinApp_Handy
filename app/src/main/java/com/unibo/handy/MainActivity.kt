@@ -1,6 +1,5 @@
 package com.unibo.handy
 
-import android.Manifest.permission.ACCESS_BACKGROUND_LOCATION
 import android.Manifest.permission.ACCESS_COARSE_LOCATION
 import android.Manifest.permission.ACCESS_FINE_LOCATION
 import android.Manifest.permission.POST_NOTIFICATIONS
@@ -19,9 +18,13 @@ import com.unibo.handy.ui.navigation.HandyAppEntry
 import com.unibo.handy.ui.theme.HandyTheme
 import dagger.hilt.android.AndroidEntryPoint
 
+/**
+ * Entry point dell'interfaccia utente.
+ * Implementa il pattern Single Activity Architecture (SAA) ospitando il grafo di Jetpack Compose.
+ */
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
-    // DEFINIZIONE DEL CALLBACK PER I PERMESSI
+    // DEFINIZIONE DEL CALLBACK PER I PERMESSI (Foreground e Notifiche)
     private val requestPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
@@ -30,24 +33,27 @@ class MainActivity : ComponentActivity() {
         val coarseLocation = permissions[ACCESS_COARSE_LOCATION] ?: false
 
         if (fineLocation || coarseLocation) {
-            Log.i("HandyMain", "Permessi Posizione concessi. Avvio il Servizio.")
             startHandyService()
+            // In un'app di produzione, qui dovrebbe essere richiesto l'ACCESS_BACKGROUND_LOCATION
         } else {
             Log.w("HandyMain", "Permessi Posizione NEGATI. Il servizio non funzionerà correttamente.")
         }
     }
 
-    // La variabile savedInstanceState salva l'ultimo stato di un Activity dopo la sua distruzione
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // Disegna la UI estendendola dietro le barre di sistema (Status Bar / Navigation Bar)
         enableEdgeToEdge()
 
+        // Inietta il grafo di navigazione Compose come root view
         setContent {
             HandyTheme {
                 HandyAppEntry()
             }
         }
 
+        // Verifica lo stato dei permessi all'avvio
         checkAndRequestPermissions()
     }
 
@@ -59,21 +65,21 @@ class MainActivity : ComponentActivity() {
             permissionsToRequest.add(POST_NOTIFICATIONS)
         }
 
-        permissionsToRequest.add(ACCESS_BACKGROUND_LOCATION)
-
         val missingPermissions = permissionsToRequest.filter {
             ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
         }
 
         if (missingPermissions.isEmpty()) {
-            Log.i("HandyMain", "Permessi già presenti. Avvio servizio diretto.")
             startHandyService()
         } else {
-            Log.i("HandyMain", "Mancano permessi. Richiedo all'utente.")
             requestPermissionLauncher.launch(missingPermissions.toTypedArray())
         }
     }
 
+    /**
+     * Avvia il NetworkService come Foreground Service.
+     * Questo garantisce che l'OS non uccida il processo quando l'app va in background.
+     */
     private fun startHandyService() {
         try {
             val intent = Intent(this, NetworkService::class.java)

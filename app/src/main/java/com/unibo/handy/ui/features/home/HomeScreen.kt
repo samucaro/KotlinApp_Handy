@@ -1,6 +1,5 @@
 package com.unibo.handy.ui.features.home
 
-import android.util.Log
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -41,7 +40,6 @@ import com.unibo.handy.ui.features.match.MatchUiState
 import com.unibo.handy.ui.theme.HandyPrimary
 import com.unibo.handy.ui.theme.HandySecondary
 
-// Wrapper Stateful
 @Composable
 fun HomeScreen(
     currentUser: User?,
@@ -74,11 +72,8 @@ fun HomeScreen(
             onSearchParamUpdate(selectedCategory, newRad)
         },
         onSendHelpRequest = {
-            // --- CONVERSIONE GEOSPAZIALE ---
             val toleranceInDegrees = searchRadius / 111.32
             val toleranceFixedPoint = toleranceInDegrees * 10_000_000.0
-
-            Log.d("HandyGeo", "Km: $searchRadius -> FixedPoint: $toleranceFixedPoint")
 
             onRequestHelp(selectedCategory, toleranceFixedPoint)
         },
@@ -88,7 +83,6 @@ fun HomeScreen(
     )
 }
 
-// Content Stateless (Solo UI)
 @Composable
 fun HomeContent(
     currentUser: User?,
@@ -107,61 +101,50 @@ fun HomeContent(
     onHelperDraftChange: (String) -> Unit
 ) {
     Column(
-        modifier = Modifier.Companion.fillMaxSize().padding(16.dp),
-        horizontalAlignment = Alignment.Companion.CenterHorizontally
+        modifier = Modifier.fillMaxSize().padding(16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
         // Header
         Row(
-            verticalAlignment = Alignment.Companion.CenterVertically,
-            modifier = Modifier.Companion.fillMaxWidth().padding(bottom = 24.dp)
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp)
         ) {
             Icon(Icons.Default.LocationOn, contentDescription = null, tint = HandyPrimary)
-            Spacer(modifier = Modifier.Companion.width(8.dp))
+            Spacer(modifier = Modifier.width(8.dp))
             Column {
-                Text("Posizione Attuale", fontSize = 12.sp, color = Color.Companion.Gray)
-                Text("Bologna, Italia (Simulato)", fontWeight = FontWeight.Companion.Bold)
+                Text("Posizione Attuale", fontSize = 12.sp, color = Color.Gray)
+                Text("Bologna, Italia (Simulato)", fontWeight = FontWeight.Bold)
             }
-            Spacer(modifier = Modifier.Companion.weight(1f))
+            Spacer(modifier = Modifier.weight(1f))
 
             val userIdDisplay = currentUser?.userId?.take(8) ?: "Anonimo"
 
-            // Indicatore ID Utente (Troncato)
             Surface(
                 color = HandyPrimary.copy(alpha = 0.1f),
                 shape = RoundedCornerShape(16.dp)
             ) {
                 Text(
                     text = "ID: $userIdDisplay...",
-                    modifier = Modifier.Companion.padding(horizontal = 12.dp, vertical = 6.dp),
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
                     fontSize = 12.sp,
                     color = HandyPrimary
                 )
             }
         }
 
-        Log.d("HandyNav", "isHelperMode: $isHelperMode")
-        // Switch Principale (Modalità)
         ModeSwitchCard(
             isHelper = isHelperMode,
             onCheckedChange = { isChecked ->
                 if (!isChecked) {
-                    Log.d("HandyNav", "Switch OFF")
-                    // L'utente accende lo switch:
-                    // Passa "Generico" per attivare la UI di configurazione (HelperView)
-                    // ma senza far partire ancora l'heartbeat reale
                     onToggleHelperMode(false, "Generico")
                 } else {
-                    Log.d("HandyNav", "Switch ON")
-                    // L'utente spegne lo switch:
-                    // Torna richiedente
                     onToggleHelperMode(true, "Generico")
                 }
             }
         )
 
-        Spacer(modifier = Modifier.Companion.height(24.dp))
+        Spacer(modifier = Modifier.height(24.dp))
 
-        Log.d("HandyNav", "isHelperMode: $isHelperMode")
         if (isHelperMode) {
             val userCategory = currentUser?.category ?: "Generico"
 
@@ -170,7 +153,6 @@ fun HomeContent(
                 selectedDraftCategory = helperDraftCategory,
                 onDraftChange = onHelperDraftChange,
                 onStartService = { selectedCat ->
-                    // L'utente ha scelto la categoria e premuto Start -> Aggiorna DB e Server
                     onToggleHelperMode(true, selectedCat)
                 }
             )
@@ -185,10 +167,9 @@ fun HomeContent(
             )
         }
 
-        Spacer(modifier = Modifier.Companion.weight(1f))
-        Text(text = userStatusMessage, fontSize = 12.sp, color = Color.Companion.Gray)
+        Spacer(modifier = Modifier.weight(1f))
+        Text(text = userStatusMessage, fontSize = 12.sp, color = Color.Gray)
 
-        // POPUP MATCH TROVATO
         if (matchState.showMatchPopup) {
             AlertDialog(
                 onDismissRequest = onDismissMatchPopup,
@@ -196,13 +177,13 @@ fun HomeContent(
                     Text(
                         text = "MATCH TROVATO!",
                         color = Color(0xFF2E7D32),
-                        fontWeight = FontWeight.Companion.Bold
+                        fontWeight = FontWeight.Bold
                     )
                 },
                 text = {
                     Column {
                         Text("Un Utente sta cercando aiuto vicino a te")
-                        Spacer(modifier = Modifier.Companion.height(8.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
                         Text(text = matchState.statusMessage)
                     }
                 },
@@ -238,25 +219,24 @@ fun HelperView(
     val isServiceActive = currentCategory != "Generico"
 
     Column(
-        horizontalAlignment = Alignment.Companion.CenterHorizontally,
-        modifier = Modifier.Companion.fillMaxWidth()
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.fillMaxWidth()
     ) {
         if (!isServiceActive) {
-            // --- FASE 1: CONFIGURAZIONE ---
             Text(
                 "Qual è la tua competenza?",
                 fontSize = 20.sp,
-                fontWeight = FontWeight.Companion.Bold,
+                fontWeight = FontWeight.Bold,
                 color = HandyPrimary
             )
-            Spacer(modifier = Modifier.Companion.height(8.dp))
+            Spacer(modifier = Modifier.height(8.dp))
             Text(
                 "Seleziona la tua competenza per renderti visibile.",
                 fontSize = 14.sp,
-                color = Color.Companion.Gray
+                color = Color.Gray
             )
 
-            Spacer(modifier = Modifier.Companion.height(24.dp))
+            Spacer(modifier = Modifier.height(24.dp))
 
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 CategoryChip(
@@ -273,47 +253,44 @@ fun HelperView(
                 ) { onDraftChange("Medico") }
             }
 
-            Spacer(modifier = Modifier.Companion.height(32.dp))
+            Spacer(modifier = Modifier.height(32.dp))
 
             Button(
                 onClick = { onStartService(selectedDraftCategory) },
                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32)),
-                modifier = Modifier.Companion.fillMaxWidth().height(56.dp),
+                modifier = Modifier.fillMaxWidth().height(56.dp),
                 shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)
             ) {
-                Text("VAI ONLINE", fontSize = 18.sp, fontWeight = FontWeight.Companion.Bold)
+                Text("VAI ONLINE", fontSize = 18.sp, fontWeight = FontWeight.Bold)
             }
         } else {
-            // --- FASE 2: IN SERVIZIO ---
-            Spacer(modifier = Modifier.Companion.height(40.dp))
+            Spacer(modifier = Modifier.height(40.dp))
             Text(
                 "Sei online come $currentCategory",
                 fontSize = 20.sp,
                 color = HandyPrimary,
-                fontWeight = FontWeight.Companion.SemiBold
+                fontWeight = FontWeight.SemiBold
             )
             Text(
                 "In attesa di richieste nelle vicinanze...",
                 fontSize = 14.sp,
-                color = Color.Companion.Gray
+                color = Color.Gray
             )
-            Spacer(modifier = Modifier.Companion.height(40.dp))
+            Spacer(modifier = Modifier.height(40.dp))
 
-            // Animazione Radar
             RadarAnimation()
 
-            Spacer(modifier = Modifier.Companion.height(150.dp))
+            Spacer(modifier = Modifier.height(150.dp))
 
-            // Bottone per fermare il servizio (torna a Generico/Configurazione)
             OutlinedButton(
                 onClick = { onStartService("Generico") },
-                modifier = Modifier.Companion.height(48.dp),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.Companion.Red)
+                modifier = Modifier.height(48.dp),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.Red)
             ) {
                 Text("Ferma Servizio")
             }
 
-            Spacer(modifier = Modifier.Companion.height(16.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
             Text("Si consiglia di entrare nell'app frequentemente per una ricerca più veloce")
         }
@@ -329,14 +306,13 @@ fun RequesterView(
     onRadiusChange: (Float) -> Unit,
     onSearchClick: () -> Unit
 ) {
-    Column(modifier = Modifier.Companion.fillMaxWidth()) {
+    Column(modifier = Modifier.fillMaxWidth()) {
         Text(
             "Di cosa hai bisogno?",
-            fontWeight = FontWeight.Companion.Bold,
-            modifier = Modifier.Companion.padding(bottom = 8.dp)
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(bottom = 8.dp)
         )
 
-        // Categorie (Pulsanti semplici per ora, da introdurre meccannismo migliore)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             CategoryChip(
                 "Idraulico",
@@ -352,11 +328,11 @@ fun RequesterView(
             ) { onCategorySelect("Medico") }
         }
 
-        Spacer(modifier = Modifier.Companion.height(24.dp))
+        Spacer(modifier = Modifier.height(24.dp))
 
         Text(
             "Raggio di ricerca: ${searchRadius.toInt()} km",
-            fontWeight = FontWeight.Companion.Bold
+            fontWeight = FontWeight.Bold
         )
         Slider(
             value = searchRadius,
@@ -364,7 +340,7 @@ fun RequesterView(
             valueRange = 1f..50f,
         )
 
-        Spacer(modifier = Modifier.Companion.height(24.dp))
+        Spacer(modifier = Modifier.height(24.dp))
 
         val isSearching =
             statusMessage == "Match in corso, cercando lavoratori" || statusMessage == "Invio richiesta..."
@@ -372,19 +348,18 @@ fun RequesterView(
             onClick = onSearchClick,
             enabled = !isSearching,
             colors = ButtonDefaults.buttonColors(containerColor = HandySecondary),
-            modifier = Modifier.Companion.fillMaxWidth().height(56.dp),
+            modifier = Modifier.fillMaxWidth().height(56.dp),
             shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)
         ) {
             if (isSearching) {
-                // Mostra la rotellina
                 CircularProgressIndicator(
-                    color = Color.Companion.White,
-                    modifier = Modifier.Companion.size(24.dp),
+                    color = Color.White,
+                    modifier = Modifier.size(24.dp),
                     strokeWidth = 2.dp
                 )
             } else {
                 Icon(Icons.Default.Search, contentDescription = null)
-                Spacer(modifier = Modifier.Companion.width(8.dp))
+                Spacer(modifier = Modifier.width(8.dp))
                 Text("Trova Aiuto Vicino a Me", fontSize = 18.sp)
             }
         }

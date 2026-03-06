@@ -43,101 +43,96 @@ fun SignUpScreen(
     onSignUpClick: () -> Unit
 ) {
     Column(
-        modifier = Modifier.Companion
+        modifier = Modifier
             .fillMaxSize()
             .background(Color(0xFF006C75))
     ) {
-        // Parte superiore: Logo e Immagine (30% dello schermo)
         Box(
-            modifier = Modifier.Companion.fillMaxWidth().weight(0.3f),
-            contentAlignment = Alignment.Companion.Center
+            modifier = Modifier.fillMaxWidth().weight(0.3f),
+            contentAlignment = Alignment.Center
         ) {
             Image(
                 painter = painterResource(id = R.drawable.handy_icon),
                 contentDescription = "Logo Handy App",
-                modifier = Modifier.Companion
+                modifier = Modifier
                     .size(180.dp)
                     .padding(top = 16.dp)
                     .clip(CircleShape),
-                contentScale = ContentScale.Companion.Crop
+                contentScale = ContentScale.Crop
             )
         }
 
-        // Parte inferiore: Card bianca con i campi (70% dello schermo)
         Surface(
-            modifier = Modifier.Companion.fillMaxWidth().weight(0.7f),
+            modifier = Modifier.fillMaxWidth().weight(0.7f),
             shape = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp),
-            color = Color.Companion.White
+            color = Color.White
         ) {
             Column(
-                modifier = Modifier.Companion.padding(24.dp).verticalScroll(rememberScrollState()),
-                horizontalAlignment = Alignment.Companion.CenterHorizontally
+                modifier = Modifier.padding(24.dp).verticalScroll(rememberScrollState()),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
                     "Ti diamo il benvenuto",
                     style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.Companion.Bold
+                    fontWeight = FontWeight.Bold
                 )
-                Text("Inizia con il  tuo account", color = Color.Companion.Gray)
+                Text("Inizia con il  tuo account", color = Color.Gray)
 
-                Spacer(modifier = Modifier.Companion.height(24.dp))
+                Spacer(modifier = Modifier.height(24.dp))
 
-                // CAMPI DI INPUT
                 OutlinedTextField(
                     value = state.username,
                     onValueChange = onUsernameChange,
                     label = { Text("Username") },
-                    modifier = Modifier.Companion.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth()
                 )
 
-                Spacer(modifier = Modifier.Companion.height(12.dp))
+                Spacer(modifier = Modifier.height(12.dp))
 
                 OutlinedTextField(
                     value = state.email,
                     onValueChange = onEmailChange,
                     label = { Text("Email") },
-                    modifier = Modifier.Companion.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth()
                 )
 
-                Spacer(modifier = Modifier.Companion.height(12.dp))
+                Spacer(modifier = Modifier.height(12.dp))
 
                 OutlinedTextField(
                     value = state.password,
                     onValueChange = onPasswordChange,
                     label = { Text("Password") },
                     visualTransformation = PasswordVisualTransformation(),
-                    modifier = Modifier.Companion.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth()
                 )
 
-                Spacer(modifier = Modifier.Companion.height(32.dp))
+                Spacer(modifier = Modifier.height(32.dp))
 
                 if (state.error != null) {
                     Text(
                         text = state.error,
-                        color = Color.Companion.Red,
+                        color = Color.Red,
                         fontSize = 14.sp,
-                        fontWeight = FontWeight.Companion.SemiBold,
-                        modifier = Modifier.Companion.padding(bottom = 8.dp)
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.padding(bottom = 8.dp)
                     )
                 }
 
-                // BOTTONE DI REGISTRAZIONE
                 Button(
                     onClick = onSignUpClick,
                     enabled = !state.isLoading,
-                    modifier = Modifier.Companion.fillMaxWidth().height(56.dp),
+                    modifier = Modifier.fillMaxWidth().height(56.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6F00)),
                     shape = androidx.compose.foundation.shape.RoundedCornerShape(28.dp)
                 ) {
                     if (state.isLoading) {
-                        // Mostra la rotellina di caricamento
                         CircularProgressIndicator(
-                            color = Color.Companion.White,
-                            modifier = Modifier.Companion.size(24.dp),
+                            color = Color.White,
+                            modifier = Modifier.size(24.dp),
                             strokeWidth = 2.dp
                         )
                     } else {
-                        Text("Registrati", fontSize = 18.sp, color = Color.Companion.White)
+                        Text("Registrati", fontSize = 18.sp, color = Color.White)
                     }
                 }
             }

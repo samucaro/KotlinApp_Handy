@@ -7,6 +7,5 @@ import androidx.room.PrimaryKey
 @Entity(tableName = "stored_clients")
 data class StoredClientEntity(
     @PrimaryKey val clientId: String,
-
     @Embedded val profile: ProfileData,
 )
