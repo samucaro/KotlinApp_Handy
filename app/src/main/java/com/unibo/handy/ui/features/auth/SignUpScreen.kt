@@ -19,6 +19,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -33,6 +34,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.unibo.handy.R
+import com.unibo.handy.ui.theme.HandyPrimary
 
 @Composable
 fun SignUpScreen(
@@ -74,17 +76,28 @@ fun SignUpScreen(
                 Text(
                     "Ti diamo il benvenuto",
                     style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.Bold
+                    fontWeight = FontWeight.Bold,
+                    color = HandyPrimary
                 )
                 Text("Inizia con il  tuo account", color = Color.Gray)
 
                 Spacer(modifier = Modifier.height(24.dp))
 
+                val customTextFieldColors = OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = HandyPrimary,
+                    unfocusedTextColor = Color.DarkGray,
+                    focusedLabelColor = HandyPrimary,
+                    unfocusedLabelColor = Color.DarkGray,
+                    focusedBorderColor = HandyPrimary,
+                    unfocusedBorderColor = Color.DarkGray
+                )
+
                 OutlinedTextField(
                     value = state.username,
                     onValueChange = onUsernameChange,
                     label = { Text("Username") },
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = customTextFieldColors
                 )
 
                 Spacer(modifier = Modifier.height(12.dp))
@@ -93,7 +106,8 @@ fun SignUpScreen(
                     value = state.email,
                     onValueChange = onEmailChange,
                     label = { Text("Email") },
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = customTextFieldColors
                 )
 
                 Spacer(modifier = Modifier.height(12.dp))
@@ -103,7 +117,8 @@ fun SignUpScreen(
                     onValueChange = onPasswordChange,
                     label = { Text("Password") },
                     visualTransformation = PasswordVisualTransformation(),
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = customTextFieldColors
                 )
 
                 Spacer(modifier = Modifier.height(32.dp))

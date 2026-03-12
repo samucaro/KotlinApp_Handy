@@ -1,188 +1,260 @@
 package com.unibo.handy.benchmark
 
-import android.os.Build
 import android.util.Log
-import androidx.annotation.RequiresApi
 import com.unibo.handy.domain.crypto.PaillierEncryption
 import java.math.BigInteger
+import java.security.SecureRandom
+import java.util.Locale
+import kotlin.math.abs
+import kotlin.math.sqrt
 import kotlin.system.measureNanoTime
 
-// Data class formattata per l'esportazione CSV/Excel
 data class BenchmarkResult(
+    val phase: String,
     val levelName: String,
+    val keyBits: Int,
     val avgExecutionTimeMs: Double,
+    val stdDevMs: Double,
     val estimatedPayloadSizeBytes: Int
 )
 
 object AblationStudyBenchmark {
 
-    private const val TAG = "SamaritanBenchmark"
+    private const val TAG = "AblationStudy"
     private const val ITERATIONS = 100
 
-    // Dati fittizi (Coordinate GPS in fixed point)
-    private val plainTextLocationA = BigInteger.valueOf(444900000)
-    private val plainTextLocationB = BigInteger.valueOf(444900100)
-    private val P = BigInteger.valueOf(999999937)
+    private const val P_LONG = 999999937L
+    private const val X_H = 444900000L
+    private const val Y_H = 113400000L
+    private const val X_R = 444900100L
+    private const val Y_R = 113400100L
+    private const val TOLERANCE = 500L
 
-    // Genera una chiave a 1024 bit SOLO per questo test (simula il vero carico)
-    private val keys = PaillierEncryption.keygen()
-    private val pubKey = keys.first
-    private val privKey = keys.second
-    private val nSquared = pubKey * pubKey
+    private const val R_C = 812345678L
+    private const val R_S = 698765432L
+    private const val C_RS = 111222333L
+    private const val C_HS = 444555666L
+    private const val R_G = 999888777L
 
-    @RequiresApi(Build.VERSION_CODES.TIRAMISU)
-    fun runFullStudy(): List<BenchmarkResult> {
-        Log.i(TAG, "--- INIZIO ABLATION STUDY (1024-bit) ---")
-        warmUpJvm() // Fondamentale in Java/Kotlin per attivare il compilatore JIT
+    fun runFullStudy() {
+        Log.e(TAG, "=========================================================")
+        Log.e(TAG, "INIZIO ABLATION STUDY: HEARTBEAT, REQUEST, MATCH")
+        Log.e(TAG, "=========================================================")
 
         val results = mutableListOf<BenchmarkResult>()
 
-        results.add(testLevel0Plaintext())
-        results.add(testLevel1BlurOnly())
-        results.add(testLevel2PaillierOnly())
-        results.add(testLevel3FullSamaritanCloud())
+        listOf(1024, 2048).forEach { keySize ->
+            Log.e(TAG, "Generazione chiavi a $keySize-bit in corso...")
+            val (pubKey, privKey) = PaillierEncryption.keygen(keySize)
 
-        Log.i(TAG, "--- FINE ABLATION STUDY ---")
+            warmUpJvm(pubKey)
 
-        // Stampa i risultati in formato CSV nei log per Excel
-        Log.i(TAG, "=== RISULTATI ESPORTABILI CSV ===")
-        Log.i(TAG, "Configurazione, TempoMedio(ms), Payload(Bytes)")
+            results.addAll(runHeartbeatAblation(keySize, pubKey))
+            results.addAll(runHelpRequestAblation(keySize, pubKey))
+            results.addAll(runMatchAblation(keySize, pubKey, privKey))
+        }
+
+        Log.e(TAG, "=========================================================")
+        Log.e(TAG, "Fase, Livello, KeySize, TempoMedio(ms), DeviazioneStandard(+/- ms), Payload(Bytes)")
         results.forEach {
-            Log.i(TAG, "${it.levelName}, ${String.format("%.4f", it.avgExecutionTimeMs)}, ${it.estimatedPayloadSizeBytes}")
+            val mean = String.format(Locale.US, "%.4f", it.avgExecutionTimeMs)
+            val std = String.format(Locale.US, "%.4f", it.stdDevMs)
+            Log.e(TAG, "${it.phase}, ${it.levelName}, ${it.keyBits}, $mean, $std, ${it.estimatedPayloadSizeBytes}")
         }
-
-        return results
-    }
-
-    private fun warmUpJvm() {
-        Log.d(TAG, "JVM Warm-up in corso (Esecuzione a vuoto per 50 cicli)...")
-        for (i in 1..50) {
-            val a = (plainTextLocationA * plainTextLocationB).mod(P)
-            PaillierEncryption.encrypt(plainTextLocationA, pubKey)
-        }
+        Log.e(TAG, "=========================================================")
     }
 
     // ==========================================
-    // LIVELLO 0: Baseline (Nessuna Protezione)
+    // MOTORE STATISTICO (Media e Deviazione Standard)
     // ==========================================
-    private fun testLevel0Plaintext(): BenchmarkResult {
-        var totalTimeNs = 0L
-        var payloadSize = 0
-
-        for (i in 1..ITERATIONS) {
-            val time = measureNanoTime {
-                // Calcolo in chiaro
-                val diff = (plainTextLocationA - plainTextLocationB).abs()
-                val isMatch = diff < BigInteger.valueOf(500)
-            }
-            totalTimeNs += time
-
-            if(i == 1) {
-                // Dimensione JSON di 2 coordinate in chiaro (es. "444900000")
-                payloadSize = plainTextLocationA.toString().length * 2
-            }
+    private inline fun measureAblation(iterations: Int, crossinline block: () -> Unit): Pair<Double, Double> {
+        val timesMs = DoubleArray(iterations)
+        for (i in 0 until iterations) {
+            timesMs[i] = measureNanoTime { block() } / 1e6
         }
-
-        val avgTimeMs = (totalTimeNs.toDouble() / ITERATIONS) / 1_000_000.0
-        return BenchmarkResult("L0_Plaintext", avgTimeMs, payloadSize)
+        val mean = timesMs.average()
+        val variance = timesMs.map { (it - mean) * (it - mean) }.average()
+        val stdDev = sqrt(variance)
+        return Pair(mean, stdDev)
     }
 
     // ==========================================
-    // LIVELLO 1: Solo Blur (Location Perturbation)
+    // FASE 1: HEARTBEAT (Helper)
     // ==========================================
-    @RequiresApi(Build.VERSION_CODES.TIRAMISU)
-    private fun testLevel1BlurOnly(): BenchmarkResult {
-        var totalTimeNs = 0L
-        var payloadSize = 0
-        val blurR = BigInteger.valueOf(12345678)
+    private fun runHeartbeatAblation(keyBits: Int, pubKey: BigInteger): List<BenchmarkResult> {
+        val phase = "Heartbeat"
+        val res = mutableListOf<BenchmarkResult>()
+        var dummy = 0L
 
-        for (i in 1..ITERATIONS) {
-            val time = measureNanoTime {
-                // Offuscamento e calcolo su campo finito Zp
-                val blurredA = (plainTextLocationA + blurR).mod(P)
-                val blurredB = (plainTextLocationB + blurR).mod(P)
-                val diff = (blurredA - blurredB).mod(P)
-                // Nel paper la metrica è min(diff, P-diff)
-                val dist = if (diff > P / BigInteger.TWO) P - diff else diff
-            }
-            totalTimeNs += time
-
-            if(i == 1) {
-                val blurredA = (plainTextLocationA + blurR).mod(P)
-                payloadSize = blurredA.toString().length * 2
-            }
+        // L0: Plaintext
+        val (meanL0, stdL0) = measureAblation(ITERATIONS) {
+            val x = X_H
+            val y = Y_H
+            dummy += (x+y)
         }
+        val sizeL0 = Long.SIZE_BYTES * 2
+        res.add(BenchmarkResult(phase, "L0_Plaintext", keyBits, meanL0, stdL0, sizeL0))
 
-        val avgTimeMs = (totalTimeNs.toDouble() / ITERATIONS) / 1_000_000.0
-        return BenchmarkResult("L1_Blur", avgTimeMs, payloadSize)
+        // L1: Solo Blur
+        val (meanL1, stdL1) = measureAblation(ITERATIONS) {
+            val bx = modSub(X_H, R_C)
+            val by = modSub(Y_H, R_C)
+            dummy += (bx+by)
+        }
+        val sizeL1 = Long.SIZE_BYTES * 2
+        res.add(BenchmarkResult(phase, "L1_Blur", keyBits, meanL1, stdL1, sizeL1))
+
+        val (meanL2, stdL2) = measureAblation(ITERATIONS) {
+            val ex = PaillierEncryption.encrypt(BigInteger.valueOf(X_H), pubKey)
+            val ey = PaillierEncryption.encrypt(BigInteger.valueOf(Y_H), pubKey)
+            dummy += (ex.toLong() + ey.toLong())
+        }
+        val sizeL2 = (PaillierEncryption.encrypt(BigInteger.valueOf(X_H), pubKey).toByteArray().size * 2)
+        res.add(BenchmarkResult(phase, "L2_Paillier", keyBits, meanL2, stdL2, sizeL2))
+
+        // L3: Full Protocol
+        val (meanL3, stdL3) = measureAblation(ITERATIONS) {
+            val bx = modSub(X_H, R_C)
+            val by = modSub(Y_H, R_C)
+            val encNoise = PaillierEncryption.encrypt(BigInteger.valueOf(R_C), pubKey)
+            dummy += (bx+by+encNoise.toLong())
+        }
+        val sizeL3 = (Long.SIZE_BYTES * 2) + PaillierEncryption.encrypt(BigInteger.valueOf(R_C), pubKey).toByteArray().size
+        res.add(BenchmarkResult(phase, "L3_Full_Protocol", keyBits, meanL3, stdL3, sizeL3))
+
+        return res
     }
 
     // ==========================================
-    // LIVELLO 2: Solo Paillier (Distanza Cifrata)
+    // FASE 2: HELP-REQUEST (Requester)
     // ==========================================
-    private fun testLevel2PaillierOnly(): BenchmarkResult {
-        var totalTimeNs = 0L
-        var payloadSize = 0
+    private fun runHelpRequestAblation(keyBits: Int, pubKey: BigInteger): List<BenchmarkResult> {
+        val phase = "HelpRequest"
+        val res = mutableListOf<BenchmarkResult>()
+        var dummy = 0L
 
-        for (i in 1..ITERATIONS) {
-            val time = measureNanoTime {
-                // Cifratura delle coordinate
-                val encA = PaillierEncryption.encrypt(plainTextLocationA, pubKey)
-                val encB = PaillierEncryption.encrypt(plainTextLocationB, pubKey)
-
-                // Omomorfismo
-                val encSum = (encA * encB).mod(nSquared)
-                val decSum = PaillierEncryption.decrypt(encSum, pubKey, privKey)
-            }
-            totalTimeNs += time
-
-            if(i == 1) {
-                val encA = PaillierEncryption.encrypt(plainTextLocationA, pubKey)
-                // Un ciphertext a 1024 bit convertito in stringa
-                payloadSize = encA.toString().length * 2
-            }
+        // L0: Plaintext
+        val (meanL0, stdL0) = measureAblation(ITERATIONS) {
+            val x = X_R
+            val y = Y_R
+            val t = TOLERANCE
+            dummy += (x+y+t)
         }
+        res.add(BenchmarkResult(phase, "L0_Plaintext", keyBits, meanL0, stdL0, 24))
 
-        val avgTimeMs = (totalTimeNs.toDouble() / ITERATIONS) / 1_000_000.0
-        return BenchmarkResult("L2_Paillier", avgTimeMs, payloadSize)
+        // L1: Blur
+        val (meanL1, stdL1) = measureAblation(ITERATIONS) {
+            val bx = modAdd(X_R, R_C)
+            val by = modAdd(Y_R, R_C)
+            val bt = modAdd(TOLERANCE, R_C)
+            dummy += (bx+by+bt)
+        }
+        res.add(BenchmarkResult(phase, "L1_Blur", keyBits, meanL1, stdL1, 24))
+
+        val (meanL2, stdL2) = measureAblation(ITERATIONS) {
+            val ex = PaillierEncryption.encrypt(BigInteger.valueOf(X_R), pubKey)
+            val ey = PaillierEncryption.encrypt(BigInteger.valueOf(Y_R), pubKey)
+            val et = PaillierEncryption.encrypt(BigInteger.valueOf(TOLERANCE), pubKey)
+            dummy += (ex.toLong() + ey.toLong() + et.toLong())
+        }
+        val sizeL2 = (PaillierEncryption.encrypt(BigInteger.valueOf(X_R), pubKey).toByteArray().size * 3)
+        res.add(BenchmarkResult(phase, "L2_Paillier", keyBits, meanL2, stdL2, sizeL2))
+
+        // L3: Full Protocol
+        val (meanL3, stdL3) = measureAblation(ITERATIONS) {
+            val bx = modAdd(X_R, R_C)
+            val by = modAdd(Y_R, R_C)
+            val encNoise = PaillierEncryption.encrypt(BigInteger.valueOf(R_C), pubKey)
+            val encTol = PaillierEncryption.encrypt(BigInteger.valueOf(TOLERANCE), pubKey)
+            dummy += (bx+by+encNoise.toLong()+encTol.toLong())
+        }
+        val sizeL3 = 16 + (PaillierEncryption.encrypt(BigInteger.valueOf(X_R), pubKey).toByteArray().size * 2)
+        res.add(BenchmarkResult(phase, "L3_Full_Protocol", keyBits, meanL3, stdL3, sizeL3))
+
+        return res
     }
 
     // ==========================================
-    // LIVELLO 3: SamaritanCloud Completo
+    // FASE 3: MATCH (Distanza Euclidea)
     // ==========================================
-    private fun testLevel3FullSamaritanCloud(): BenchmarkResult {
-        var totalTimeNs = 0L
-        var payloadSize = 0
+    private fun runMatchAblation(keyBits: Int, pubKey: BigInteger, privKey: PaillierEncryption.PrivateKey): List<BenchmarkResult> {
+        val phase = "Match"
+        val res = mutableListOf<BenchmarkResult>()
+        var dummy = 0L
 
-        for (i in 1..ITERATIONS) {
-            val r = BigInteger.valueOf(9876543)
-            val tol = BigInteger.valueOf(500)
+        val t3X = modAdd(X_R, R_C) + C_RS + R_G
+        val t3Y = modAdd(Y_R, R_C) + C_RS + R_G
+        val prblurX = modSub(X_H, R_S) - C_HS + R_G
+        val prblurY = modSub(Y_H, R_S) - C_HS + R_G
+        val t4Enc = PaillierEncryption.encrypt(BigInteger.valueOf(R_C + R_S), pubKey)
+        val t6Enc = PaillierEncryption.encrypt(BigInteger.valueOf(TOLERANCE), pubKey)
+        val t5 = C_RS - C_HS
+        // Per layer 2
+        val originalDx = abs(X_H - X_R)
+        val originalDy = abs(Y_H - Y_R)
+        val encDx = PaillierEncryption.encrypt(BigInteger.valueOf(originalDx), pubKey)
+        val encDy = PaillierEncryption.encrypt(BigInteger.valueOf(originalDy), pubKey)
 
-            val time = measureNanoTime {
-                // 1. Fase App Android: Blur e Cifratura Paillier
-                val betaX = (plainTextLocationA + r).mod(P)
-                val encR = PaillierEncryption.encrypt(r, pubKey)
-                val encTol = PaillierEncryption.encrypt(tol, pubKey)
-
-                // 2. Fase Server Python: Somma Omomorfica
-                val targetEncR = PaillierEncryption.encrypt(BigInteger.valueOf(1111), pubKey)
-                val t4SumEncrypted = (encR * targetEncR).mod(nSquared)
-
-                // 3. Fase Distance Computation (Match)
-                val decSum = PaillierEncryption.decrypt(t4SumEncrypted, pubKey, privKey)
-            }
-            totalTimeNs += time
-
-            if(i == 1) {
-                val betaX = (plainTextLocationA + r).mod(P)
-                val encR = PaillierEncryption.encrypt(r, pubKey)
-                val encTol = PaillierEncryption.encrypt(tol, pubKey)
-                // Tupla Completa: BetaX, BetaY (in chiaro Zp) + EncR, EncTol, PubKey (Cifrati)
-                payloadSize = (betaX.toString().length * 2) + (encR.toString().length * 2) + pubKey.toString().length
-            }
+        // L0: Plaintext
+        val (meanL0, stdL0) = measureAblation(ITERATIONS) {
+            val dx = abs(X_H - X_R).toDouble()
+            val dy = abs(Y_H - Y_R).toDouble()
+            val dist = sqrt((dx * dx) + (dy * dy))
+            val isMatch = dist <= TOLERANCE
+            dummy += if (isMatch) 1L else 0L
         }
+        res.add(BenchmarkResult(phase, "L0_Plaintext", keyBits, meanL0, stdL0, 0))
 
-        val avgTimeMs = (totalTimeNs.toDouble() / ITERATIONS) / 1_000_000.0
-        return BenchmarkResult("L3_Full_SamaritanCloud", avgTimeMs, payloadSize)
+        // L1: Decifratura Blur Matematico
+        val (meanL1, stdL1) = measureAblation(ITERATIONS) {
+            val noiseSum = (R_C + R_S) + (C_RS - C_HS)
+            val cleanDx = minMetricDistance(modSub(t3X, modAdd(prblurX, noiseSum))).toDouble()
+            val cleanDy = minMetricDistance(modSub(t3Y, modAdd(prblurY, noiseSum))).toDouble()
+            val dist = sqrt((cleanDx * cleanDx) + (cleanDy * cleanDy))
+            val isMatch = dist <= TOLERANCE
+            dummy += if (isMatch) 1L else 0L
+        }
+        res.add(BenchmarkResult(phase, "L1_Blur", keyBits, meanL1, stdL1, 0))
+
+        // L2: Approccio Naïve (Paillier puro sulle coordinate)
+        val (meanL2, stdL2) = measureAblation(ITERATIONS) {
+            // Il client è costretto a decifrare asimmetricamente 3 variabili pesanti!
+            val decDx = PaillierEncryption.decrypt(encDx, pubKey, privKey).toLong().toDouble()
+            val decDy = PaillierEncryption.decrypt(encDy, pubKey, privKey).toLong().toDouble()
+            val decT = PaillierEncryption.decrypt(t6Enc, pubKey, privKey).toLong()
+
+            // Calcolo della distanza coerente con l'equazione
+            val dist = sqrt((decDx * decDx) + (decDy * decDy))
+            val isMatch = dist <= decT
+            dummy += if (isMatch) 1L else 0L
+        }
+        res.add(BenchmarkResult(phase, "L2_Paillier", keyBits, meanL2, stdL2, 0))
+
+        // L2: Full Protocol SamaritanCloud
+        val (meanL3, stdL3) = measureAblation(ITERATIONS) {
+            val t4Dec = PaillierEncryption.decrypt(t4Enc, pubKey, privKey).toLong()
+            val t6Dec = PaillierEncryption.decrypt(t6Enc, pubKey, privKey).toLong()
+            val totalNoise = modAdd(t4Dec, t5)
+            val valX = modAdd(prblurX, totalNoise)
+            val dx = minMetricDistance(modSub(t3X, valX)).toDouble()
+            val valY = modAdd(prblurY, totalNoise)
+            val dy = minMetricDistance(modSub(t3Y, valY)).toDouble()
+            val dist = sqrt((dx * dx) + (dy * dy))
+            val isMatch = dist <= t6Dec
+            dummy += if (isMatch) 1L else 0L
+        }
+        res.add(BenchmarkResult(phase, "L3_Full_Protocol", keyBits, meanL3, stdL3, 0))
+
+        return res
+    }
+
+    private fun modAdd(a: Long, b: Long): Long = ((a % P_LONG) + (b % P_LONG)) % P_LONG
+    private fun modSub(a: Long, b: Long): Long {
+        val res = (a % P_LONG) - (b % P_LONG)
+        return if (res < 0) res + P_LONG else res
+    }
+    private fun minMetricDistance(delta: Long): Long = if (delta > P_LONG / 2) P_LONG - delta else delta
+    private fun warmUpJvm(pubKey: BigInteger) {
+        for (i in 1..10) PaillierEncryption.encrypt(BigInteger.valueOf(X_H), pubKey)
     }
 }

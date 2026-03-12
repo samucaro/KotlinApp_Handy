@@ -148,6 +148,13 @@ async def receive_heartbeat(data: HeartBeatModel):
     reblurred_x = mod_add(mod_sub(data.blurredX, cs_r_i), R_GLOBAL)
     reblurred_y = mod_add(mod_sub(data.blurredY, cs_r_i), R_GLOBAL)
 
+    # ---> AGGIUNGI QUESTE DUE RIGHE <---
+    print("\n" + "="*50)
+    print(f"🎯 COORDINATE DA COPIARE PER IL TEST:")
+    print(f"req_x = {reblurred_x}")
+    print(f"req_y = {reblurred_y}")
+    print("="*50 + "\n")
+
     service_client_id = storage_map.get(target_uuid)
     if service_client_id:
         msg = {
@@ -210,11 +217,19 @@ async def receive_help_request(data: HelpRequestModel):
         if service_client_id and service_client_id in client_registry:
             fcm_token = client_registry[service_client_id].get("fcmToken")
 
-            if fcm_token == "PYTHON_NO_FCM":
-                msg = {"type": "COMPUTE_MATCH", "payload": tupla_payload}
+            msg = {"type": "COMPUTE_MATCH", "payload": tupla_payload}
+
+            if service_client_id in active_connections:
+                # Se l'app Android è aperta e il WebSocket è connesso, invia istantaneamente!
                 asyncio.create_task(manager.send_json(msg, service_client_id))
+                print(f"INFO: Tupla inviata via WebSocket a {service_client_id[:8]}")
             else:
-                send_fcm_message(fcm_token, "COMPUTE_MATCH", tupla_payload)
+                # Se l'app è in background (WS disconnesso), prova a svegliarla con Firebase
+                if fcm_token and fcm_token != "PYTHON_NO_FCM":
+                    send_fcm_message(fcm_token, "COMPUTE_MATCH", tupla_payload)
+                    print(f"INFO: Tentativo di risveglio FCM per {service_client_id[:8]}")
+                else:
+                    print(f"WARN: Impossibile raggiungere {service_client_id[:8]} (No WS, No FCM)")
 
     return {"status": "processed"}
 
@@ -264,7 +279,7 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
 
             elif msg_type == "CHAT_MESSAGE":
                 await handle_chat_message(data, client_id)
-                
+
             else:
                 print(f"WARN: Tipo messaggio non riconosciuto: {msg_type}")
 

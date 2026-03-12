@@ -1,5 +1,6 @@
 package com.unibo.handy
 
+import android.Manifest.permission.ACCESS_BACKGROUND_LOCATION
 import android.Manifest.permission.ACCESS_COARSE_LOCATION
 import android.Manifest.permission.ACCESS_FINE_LOCATION
 import android.Manifest.permission.POST_NOTIFICATIONS
@@ -8,15 +9,20 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.lifecycleScope
+import com.unibo.handy.benchmark.AblationStudyBenchmark
 import com.unibo.handy.service.NetworkService
 import com.unibo.handy.ui.navigation.HandyAppEntry
 import com.unibo.handy.ui.theme.HandyTheme
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 /**
  * Entry point dell'interfaccia utente.
@@ -25,6 +31,17 @@ import dagger.hilt.android.AndroidEntryPoint
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     // DEFINIZIONE DEL CALLBACK PER I PERMESSI (Foreground e Notifiche)
+    private val backgroundLocationLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            Log.i("HandyMain", "Background Location CONCESSO. L'Heartbeat funzionerà a schermo spento.")
+        } else {
+            Log.w("HandyMain", "Background Location NEGATO. L'app funzionerà solo se lasciata aperta.")
+            Toast.makeText(this, "Senza posizione 'Sempre', riceverai meno richieste di aiuto", Toast.LENGTH_LONG).show()
+        }
+    }
+
     private val requestPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
@@ -34,10 +51,24 @@ class MainActivity : ComponentActivity() {
 
         if (fineLocation || coarseLocation) {
             startHandyService()
-            // In un'app di produzione, qui dovrebbe essere richiesto l'ACCESS_BACKGROUND_LOCATION
+            val hasBackgroundLocation = ContextCompat.checkSelfPermission(
+                this, ACCESS_BACKGROUND_LOCATION
+            ) == PackageManager.PERMISSION_GRANTED
+
+            if (!hasBackgroundLocation) {
+                // Questa chiamata porterà l'utente nelle Impostazioni di Android
+                // dove dovrà selezionare manualmente "Consenti sempre"
+                backgroundLocationLauncher.launch(ACCESS_BACKGROUND_LOCATION)
+            }
         } else {
             Log.w("HandyMain", "Permessi Posizione NEGATI. Il servizio non funzionerà correttamente.")
         }
+    }
+
+    private val requestBackgroundLocationLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) Log.d("HandyMain", "Background Location concessa")
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -45,6 +76,13 @@ class MainActivity : ComponentActivity() {
 
         // Disegna la UI estendendola dietro le barre di sistema (Status Bar / Navigation Bar)
         enableEdgeToEdge()
+
+        // INNESCO DELL'ABLATION STUDY IN BACKGROUND
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            lifecycleScope.launch(Dispatchers.Default) {
+                AblationStudyBenchmark.runFullStudy()
+            }
+        }
 
         // Inietta il grafo di navigazione Compose come root view
         setContent {
@@ -65,14 +103,18 @@ class MainActivity : ComponentActivity() {
             permissionsToRequest.add(POST_NOTIFICATIONS)
         }
 
-        val missingPermissions = permissionsToRequest.filter {
-            ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
+        val allGranted = permissionsToRequest.all {
+            ContextCompat.checkSelfPermission(this, it) == PackageManager.PERMISSION_GRANTED
         }
 
-        if (missingPermissions.isEmpty()) {
+        if (allGranted) {
             startHandyService()
+            if (ContextCompat.checkSelfPermission(this, ACCESS_BACKGROUND_LOCATION)
+                != PackageManager.PERMISSION_GRANTED) {
+                requestBackgroundLocationLauncher.launch(ACCESS_BACKGROUND_LOCATION)
+            }
         } else {
-            requestPermissionLauncher.launch(missingPermissions.toTypedArray())
+            requestPermissionLauncher.launch(permissionsToRequest.toTypedArray())
         }
     }
 

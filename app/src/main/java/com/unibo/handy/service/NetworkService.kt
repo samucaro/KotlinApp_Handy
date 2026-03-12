@@ -1,5 +1,7 @@
 package com.unibo.handy.service
 
+import android.app.AlarmManager
+import android.app.PendingIntent
 import com.unibo.handy.R
 import android.app.Service
 import android.content.Intent
@@ -27,6 +29,8 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.util.concurrent.TimeUnit
@@ -44,6 +48,8 @@ class NetworkService : Service() {
 
     private var backgroundJob: Job? = null
     private var heartbeatJob: Job? = null
+    private var connectionJob: Job? = null
+    private var listenerJob: Job? = null
 
     @Inject
     lateinit var userRepo: UserRepository
@@ -55,6 +61,10 @@ class NetworkService : Service() {
     lateinit var dispatcher: MessageDispatcher
     @Inject
     lateinit var webSocketManager: WebSocketManager
+
+    companion object {
+        const val ACTION_HEARTBEAT_TICK = "com.unibo.handy.ACTION_HEARTBEAT"
+    }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         // Configurazione della notifica persistente
@@ -70,14 +80,24 @@ class NetworkService : Service() {
             startForeground(
                 1,
                 notification,
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC or ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION
             )
         } catch (e: Exception) {
-            Log.e("HandyService", "Foreground start error: ${e.message}")
+            Log.e("HandyService", "Errore avvio Foreground: ${e.message}")
             stopSelf()
         }
 
-        startBackgroundLogic()
+        when (intent?.action) {
+            ACTION_HEARTBEAT_TICK -> {
+                // L'allarme ha suonato: esegui l'invio
+                performHeartbeat()
+            }
+            else -> {
+                // Avvio normale o riavvio dopo kill
+                startBackgroundLogic() // Mantiene WebSocket
+                scheduleNextAlarm()    // Fa partire il primo allarme
+            }
+        }
 
         // START_STICKY istruisce l'OS a riavviare il servizio se viene ucciso per mancanza di RAM
         return START_STICKY
@@ -87,44 +107,65 @@ class NetworkService : Service() {
         backgroundJob?.cancel()
 
         backgroundJob = scope.launch {
-            // Reagisce dinamicamente ai cambiamenti di stato dell'utente
-            userRepo.currentUserFlow.collectLatest { user ->
 
-                if (user == null) {
-                    webSocketManager.close()
-                    WorkManager.getInstance(applicationContext).cancelUniqueWork("HeartbeatWork")
-                    return@collectLatest
-                }
+            // BLOCCO 1: GESTIONE WEBSOCKET
+            launch {
+                userRepo.currentUserFlow
+                    // Estrae SOLO l'ID, così la connessione non cade se cambia la modalità Helper
+                    .map { it?.userId }
+                    .distinctUntilChanged()
+                    .collectLatest { userId ->
 
-                // 1. Connessione WebSocket (Stateful)
-                launch {
-                    try {
-                        webSocketManager.connect(user.userId)
-                        chatRepo.syncPendingMessages()
-                    } catch (e: Exception) {
-                        Log.e("HandyService", "WebSocket connection error", e)
-                    }
-                }
+                        if (userId == null) {
+                            webSocketManager.close()
+                            connectionJob?.cancel()
+                            listenerJob?.cancel()
+                            return@collectLatest
+                        }
 
-                // 2. Ascolto del WebSocket e instradamento messaggi
-                launch {
-                    webSocketManager.incomingMessages.collectLatest { rawMessage ->
-                        try {
-                            val root = JsonParser.parseString(rawMessage).asJsonObject
-                            val action = root.get("type")?.asString
-                            val payload = root.get("payload")?.toString()
+                        connectionJob?.cancel()
+                        listenerJob?.cancel()
 
-                            if (action != null && payload != null) {
-                                dispatcher.dispatch(action, payload)
+                        // 1. Connessione WebSocket
+                        connectionJob = launch {
+                            try {
+                                webSocketManager.connect(userId)
+                                chatRepo.syncPendingMessages()
+                            } catch (e: Exception) {
+                                Log.e("HandyService", "WebSocket connection error", e)
                             }
-                        } catch (e: Exception) {
-                            Log.e("HandyService", "Errore parsing messaggio socket", e)
+                        }
+
+                        // 2. Ascolto del WebSocket
+                        listenerJob = launch {
+                            webSocketManager.incomingMessages.collect { rawMessage ->
+                                try {
+                                    val root = JsonParser.parseString(rawMessage).asJsonObject
+                                    val action = root.get("type")?.asString
+                                    val payload = root.get("payload")?.toString()
+
+                                    if (action != null && payload != null) {
+                                        dispatcher.dispatch(action, payload)
+                                    }
+                                } catch (e: Exception) {
+                                    Log.e("HandyService", "Errore parsing messaggio socket", e)
+                                }
+                            }
                         }
                     }
-                }
+            }
 
-                // 3. GESTIONE HEARTBEAT (Invio posizione offuscata)
-                if (user.helpModeActive) {
+            // BLOCCO 2: GESTIONE HEARTBEAT
+            launch {
+                userRepo.currentUserFlow.collectLatest { user ->
+
+                    if (user == null || !user.helpModeActive) {
+                        // Spegnimento reattivo se l'utente disattiva la modalità Helper o fa logout
+                        WorkManager.getInstance(applicationContext).cancelUniqueWork("HeartbeatWork")
+                        heartbeatJob?.cancel()
+                        return@collectLatest
+                    }
+
                     // --- STRATEGIA 1: BACKGROUND (WorkManager) ---
                     val constraints = Constraints.Builder()
                         .setRequiredNetworkType(NetworkType.CONNECTED)
@@ -132,7 +173,7 @@ class NetworkService : Service() {
 
                     val heartbeatRequest = PeriodicWorkRequestBuilder<HeartbeatWorker>(
                         15,
-                        TimeUnit.MINUTES // Limite minimo imposto da Android
+                        TimeUnit.MINUTES
                     )
                         .setConstraints(constraints)
                         .setInitialDelay(15, TimeUnit.MINUTES)
@@ -147,19 +188,56 @@ class NetworkService : Service() {
                     // --- STRATEGIA 2: FOREGROUND ATTIVO (Coroutine) ---
                     heartbeatJob?.cancel()
                     heartbeatJob = launch {
-                        while (isActive) {
-                            sendHeartbeatUseCase()
 
-                            delay(10 * 1000L) //5 * 60 * 1000L
+                        delay(3000)
+
+                        while (isActive) {
+                            try {
+                                sendHeartbeatUseCase()
+                            } catch (e: Exception) {
+                                Log.e("HandyService", "Errore Heartbeat: ${e.message}")
+                            }
+
+                            delay(10 * 1000L)
                         }
                     }
-                } else {
-                    // Spegnimento reattivo se l'utente disattiva la modalità Helper
-                    WorkManager.getInstance(applicationContext).cancelUniqueWork("HeartbeatWork")
-                    heartbeatJob?.cancel()
                 }
             }
         }
+    }
+
+    private fun performHeartbeat() {
+        scope.launch {
+            try {
+                sendHeartbeatUseCase()
+                Log.i("HandyService", "Heartbeat 5min inviato con successo")
+            } catch (e: Exception) {
+                Log.e("HandyService", "Errore battito: ${e.message}")
+            } finally {
+                scheduleNextAlarm()
+            }
+        }
+    }
+
+    private fun scheduleNextAlarm() {
+        val alarmManager = getSystemService(ALARM_SERVICE) as AlarmManager
+        val intent = Intent(this, NetworkService::class.java).apply {
+            action = ACTION_HEARTBEAT_TICK
+        }
+
+        val pendingIntent = PendingIntent.getService(
+            this, 0, intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        // Sveglia la CPU ogni 5 minuti anche in Doze Mode
+        val triggerAt = System.currentTimeMillis() + (5 * 60 * 1000L)
+
+        alarmManager.setExactAndAllowWhileIdle(
+            AlarmManager.RTC_WAKEUP,
+            triggerAt,
+            pendingIntent
+        )
     }
 
     override fun onDestroy() {

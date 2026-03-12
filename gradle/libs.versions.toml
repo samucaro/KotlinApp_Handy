@@ -33,6 +33,7 @@ firebasebom = "34.9.0"
 firebasemessage = "25.0.1"
 firebaseanalytics = "23.0.0"
 crypto = "1.2.0"
+compiler = "3.2.0-alpha11"
 
 
 [libraries]
@@ -97,6 +98,7 @@ androidx-compose-runtime = { group = "androidx.compose.runtime", name = "runtime
 
 # CIFRARIO DATI SENSIBILI
 androidx-datastore-preferences = { module = "androidx.datastore:datastore-preferences", version.ref = "crypto" }
+androidx-compiler = { group = "androidx.databinding", name = "compiler", version.ref = "compiler" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

@@ -5,7 +5,6 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
-import android.os.Build
 import androidx.core.app.NotificationCompat
 import com.unibo.handy.MainActivity
 import com.unibo.handy.R
@@ -47,22 +46,34 @@ class NotificationHelper @Inject constructor(
     /**
      * Lancia una notifica "Heads-up" che interrompe l'utente per avvisarlo di un match.
      */
-    fun showMatchNotification() {
+    fun showMatchNotification(isHelper: Boolean) {
         // Intent esplicito per risvegliare l'app o portarla in primo piano
         val intent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
         }
-
         // FLAG_IMMUTABLE garantisce la sicurezza contro l'Intent Hijacking
         val pendingIntent: PendingIntent = PendingIntent.getActivity(
             context, 0, intent, PendingIntent.FLAG_IMMUTABLE
         )
 
+        // --- TESTI DINAMICI (Context-Awareness) ---
+        val title = if (isHelper) {
+            "Richiesta di Aiuto Vicina!"
+        } else {
+            "Aiuto in arrivo!"
+        }
+
+        val messageText = if (isHelper) {
+            "Un utente ha bisogno della tua competenza. Tocca per aprire."
+        } else {
+            "Un lavoratore ha accettato la tua richiesta. Apri l'app per chattare!"
+        }
+
         // Costruzione grafica della notifica
         val builder = NotificationCompat.Builder(context, channelId)
             .setSmallIcon(R.drawable.handy_icon)
-            .setContentTitle("Richiesta di Aiuto Vicina!")
-            .setContentText("Un utente ha bisogno della tua competenza. Tocca per aprire.")
+            .setContentTitle(title)
+            .setContentText(messageText)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setVibrate(longArrayOf(1000, 1000, 1000)) // Pattern di vibrazione (Richiede permesso VIBRATE)
             .setContentIntent(pendingIntent)

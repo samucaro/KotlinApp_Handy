@@ -37,7 +37,7 @@ object AppModule {
             "STORE_PROFILE" to StoreProfileStrategy(matchingRepository, gson),
             "UPDATE_PROFILE" to StoreProfileStrategy(matchingRepository, gson),
             "CHAT_MESSAGE" to ChatMessageStrategy(chatRepository, gson),
-            "MATCH_FOUND" to MatchFoundStrategy(matchingRepository, gson)
+            "MATCH_FOUND" to MatchFoundStrategy(matchingRepository, notificationHelper, gson)
         )
         return MessageDispatcher(handlersMap)
     }

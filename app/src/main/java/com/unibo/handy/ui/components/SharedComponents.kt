@@ -24,6 +24,7 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
@@ -44,8 +45,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.unibo.handy.data.db.entity.ChatMessagesEntity
+import com.unibo.handy.ui.theme.HandyBackground
 import com.unibo.handy.ui.theme.HandyPrimary
 import com.unibo.handy.ui.theme.HandyPrimaryLight
+import com.unibo.handy.ui.theme.HandySecondary
 import java.text.SimpleDateFormat
 import java.util.Locale
 
@@ -87,18 +90,22 @@ fun CategoryChip(label: String, isSelected: Boolean, onClick: () -> Unit) {
     FilterChip(
         selected = isSelected,
         onClick = onClick,
-        label = { Text(label) },
+        label = { Text(label, color = Color.DarkGray) },
         leadingIcon = if (isSelected) {
-            { Icon(Icons.Default.Check, null) }
-        } else null
+            { Icon(Icons.Default.Check, null, tint = Color.DarkGray) }
+        } else null,
+        colors = FilterChipDefaults.filterChipColors(
+            containerColor = HandyBackground,
+            selectedContainerColor = Color(0xFFDDD2EA)
+        )
     )
 }
 
 @Composable
 fun RowScope.NavBarItem(index: Int, label: String, icon: ImageVector, selectedIndex: Int, onClick: () -> Unit) {
     NavigationBarItem(
-        icon = { Icon(icon, contentDescription = label) },
-        label = { Text(label) },
+        icon = { Icon(icon, contentDescription = label, tint = if (index == selectedIndex) HandyPrimary else Color.DarkGray) },
+        label = { Text(label, color = if (index == selectedIndex) HandySecondary else Color.DarkGray) },
         selected = index == selectedIndex,
         onClick = onClick,
         colors = NavigationBarItemDefaults.colors(indicatorColor = HandyPrimary.copy(alpha = 0.2f))
@@ -145,11 +152,11 @@ fun MessageBubble(msg: ChatMessagesEntity, isMe: Boolean) {
             modifier = Modifier.widthIn(max = 280.dp)
         ) {
             Column(modifier = Modifier.padding(8.dp)) {
-                Text(msg.message, fontSize = 16.sp)
+                Text(msg.message, fontSize = 16.sp, color = Color.DarkGray)
                 Text(
                     text = SimpleDateFormat("HH:mm", Locale.getDefault()).format(msg.timestamp),
                     fontSize = 10.sp,
-                    color = Color.Gray,
+                    color = Color.DarkGray,
                     modifier = Modifier.align(Alignment.End)
                 )
             }
@@ -170,7 +177,7 @@ fun ModeSwitchCard(isHelper: Boolean, onCheckedChange: (Boolean) -> Unit) {
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Column {
-                Text(if (isHelper) "Modalità Helper" else "Modalità Richiedente", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                Text(if (isHelper) "Modalità Helper" else "Modalità Richiedente", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = HandyPrimary)
                 Text(if (isHelper) "Sei visibile per lavori" else "Cerca professionisti", fontSize = 14.sp, color = Color.Gray)
             }
             Switch(

@@ -51,6 +51,7 @@ fun HandyAppEntry() {
     val navController = rememberNavController()
     val userVM: UserViewModel = hiltViewModel()
     val netStatus by userVM.networkStatus.collectAsState()
+    val userState by userVM.uiState.collectAsState()
 
     Box(modifier = Modifier.fillMaxSize()) {
         NavHost(
@@ -111,7 +112,17 @@ fun HandyAppEntry() {
 
                 val context = LocalContext.current
 
-                // Feedback (Vibrazione) retrocompatibile
+                // Auth Guard per il Logout
+                LaunchedEffect(userState.currentUser) {
+                    if (userState.currentUser == null && userState.isInitialDataLoaded) {
+                        navController.navigate(Screen.SignUp.route) {
+                            // Svuota completamente lo stack di navigazione
+                            popUpTo(Screen.Home.route) { inclusive = true }
+                        }
+                    }
+                }
+
+                // Feedback (Vibrazione) retrocompatibile (Helper)
                 LaunchedEffect(matchState.incomingMatchId) {
                     if (matchState.showMatchPopup && matchState.incomingMatchId != null) {
                         val vibratorManager = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager
@@ -119,6 +130,18 @@ fun HandyAppEntry() {
 
                         if (vibrator.hasVibrator()) {
                             vibrator.vibrate(VibrationEffect.createOneShot(500, VibrationEffect.DEFAULT_AMPLITUDE))
+                        }
+                    }
+                }
+
+                // Feedback (Vibrazione) retrocompatibile (Requester)
+                LaunchedEffect(userState.statusMessage) {
+                    if (userState.statusMessage == "Match avvenuto, attendi il messaggio del lavoratore") {
+                        val vibratorManager = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager
+                        val vibrator = vibratorManager.defaultVibrator
+
+                        if (vibrator.hasVibrator()) {
+                            vibrator.vibrate(VibrationEffect.createOneShot(800, VibrationEffect.DEFAULT_AMPLITUDE))
                         }
                     }
                 }
@@ -167,8 +190,10 @@ fun HandyAppEntry() {
             }
         }
 
+        val isLoggedIn = userState.currentUser != null
+
         // --- GLOBAL OVERLAY: GESTIONE OFFLINE ---
-        if (netStatus is NetworkStatus.Disconnected || netStatus is NetworkStatus.Reconnecting) {
+        if (isLoggedIn && (netStatus is NetworkStatus.Disconnected || netStatus is NetworkStatus.Reconnecting)) {
             Surface(
                 modifier = Modifier.fillMaxSize(),
                 color = Color.Transparent

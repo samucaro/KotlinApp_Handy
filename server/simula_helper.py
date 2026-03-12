@@ -6,8 +6,8 @@ import requests
 import websockets
 from crypto_utils import PUB_N, PRIV_SK, PUB_N_SQ, P, mod_sub, min_metric_distance
 
-SERVER_URL_HTTP = "http://127.0.0.1:8000"
-SERVER_URL_WS = "ws://127.0.0.1:8000/ws"
+SERVER_URL_HTTP = "http://10.47.101.63:8080"
+SERVER_URL_WS = "ws://10.47.101.63:8080/ws"
 
 def decrypt_paillier(c_str: str) -> int:
     """Decifra Paillier: m = L(c^lambda mod n^2) * mu mod n"""

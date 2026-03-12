@@ -2,10 +2,12 @@ package com.unibo.handy.data.repository
 
 import android.content.Context
 import android.util.Base64
+import android.util.Log
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.unibo.handy.domain.crypto.ICryptoManager
+import com.unibo.handy.domain.crypto.PaillierEncryption
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import java.math.BigInteger
@@ -26,7 +28,8 @@ class SecureKeyRepository @Inject constructor(
     private val cryptoManager: ICryptoManager
 ) {
     companion object {
-        val PRIVATE_KEY = stringPreferencesKey("group_private_key")
+        val PRIVATE_KEY_PHI_N = stringPreferencesKey("private_key_phi_n")
+        val PRIVATE_KEY_D = stringPreferencesKey("private_key_d")
         val PUBLIC_MODULUS = stringPreferencesKey("public_modulus")
     }
 
@@ -38,14 +41,12 @@ class SecureKeyRepository @Inject constructor(
     suspend fun initKeysIfEmpty() {
         val existingModulus = getPublicModulus()
         if (existingModulus == null) {
-            // ATTENZIONE (Ablation Test):
-            // Questi sono valori "giocattolo"
-            // Devono essere sostituiti con stringhe di chiavi reali a 1024 o 2048 bit generate
-            // tramite PaillierEncryption.keygen() prima di raccogliere i dati prestazionali!
-            val mockPublicModulus = BigInteger("3233")
-            val mockPrivateKey = BigInteger("2753")
+            val keyPair = PaillierEncryption.keygen()
+            val publicModulus = keyPair.first
+            Log.e("CHIAVI_SERVER", "Copia questo valore in Python: \n$publicModulus")
+            val privateKey = keyPair.second
 
-            saveKeys(mockPrivateKey, mockPublicModulus)
+            saveKeys(privateKey, publicModulus)
         }
     }
 
@@ -53,12 +54,14 @@ class SecureKeyRepository @Inject constructor(
      * Cifra la chiave privata e il modulo pubblico a livello di byte usando AES (tramite Keystore)
      * e li salva nel DataStore codificati in Base64 per compatibilità di formato.
      */
-    suspend fun saveKeys(privateKey: BigInteger, modulus: BigInteger) {
-        val encryptedPrivKey = cryptoManager.encrypt(privateKey.toByteArray())
+    suspend fun saveKeys(privateKey: PaillierEncryption.PrivateKey, modulus: BigInteger) {
+        val encryptedPhiN = cryptoManager.encrypt(privateKey.phiN.toByteArray())
+        val encryptedD = cryptoManager.encrypt(privateKey.d.toByteArray())
         val encryptedModulus = cryptoManager.encrypt(modulus.toByteArray())
 
         context.dataStore.edit { prefs ->
-            prefs[PRIVATE_KEY] = Base64.encodeToString(encryptedPrivKey, Base64.DEFAULT)
+            prefs[PRIVATE_KEY_PHI_N] = Base64.encodeToString(encryptedPhiN, Base64.DEFAULT)
+            prefs[PRIVATE_KEY_D] = Base64.encodeToString(encryptedD, Base64.DEFAULT)
             prefs[PUBLIC_MODULUS] = Base64.encodeToString(encryptedModulus, Base64.DEFAULT)
         }
     }
@@ -67,11 +70,23 @@ class SecureKeyRepository @Inject constructor(
      * Recupera la chiave privata dal DataStore, la decodifica dal formato Base64
      * e la decifra in modo trasparente tramite l'Hardware Keystore.
      */
-    suspend fun getPrivateKey(): BigInteger? {
-        val encryptedBase64 = context.dataStore.data.map { it[PRIVATE_KEY] }.first() ?: return null
-        val encryptedBytes = Base64.decode(encryptedBase64, Base64.DEFAULT)
-        val decryptedBytes = cryptoManager.decrypt(encryptedBytes)
-        return BigInteger(decryptedBytes)
+    suspend fun getPrivateKey(): PaillierEncryption.PrivateKey? {
+        val prefs = context.dataStore.data.first()
+
+        // Recupera le due stringhe Base64
+        val phiNBase64 = prefs[PRIVATE_KEY_PHI_N] ?: return null
+        val dBase64 = prefs[PRIVATE_KEY_D] ?: return null
+
+        // Decodifica da Base64
+        val phiNBytes = Base64.decode(phiNBase64, Base64.DEFAULT)
+        val dBytes = Base64.decode(dBase64, Base64.DEFAULT)
+
+        // Decifra tramite l'Hardware Keystore
+        val decryptedPhiN = cryptoManager.decrypt(phiNBytes)
+        val decryptedD = cryptoManager.decrypt(dBytes)
+
+        // Ricostruisce l'oggetto PrivateKey richiesto dal PrivacyEngine
+        return PaillierEncryption.PrivateKey(BigInteger(decryptedPhiN), BigInteger(decryptedD))
     }
 
     /**

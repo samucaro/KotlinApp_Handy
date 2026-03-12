@@ -20,18 +20,23 @@ class ComputeMatchStrategy @Inject constructor(
 ) : MessageStrategy {
 
     override suspend fun handle(payload: String) {
+        Log.e("STRATEGY_MATCH", "1. Iniziato parsing della Tupla: $payload")
         try {
             // 1. Deserializzazione della tupla matematica
             val tuple = gson.fromJson(payload, TupleDTO::class.java)
+            Log.e("STRATEGY_MATCH", "2. Parsing riuscito! Requester: ${tuple.t1RequesterId}")
 
             // 2. Invocazione del Livello di Dominio (PrivacyEngine via UseCase)
             val isCompatible = computeMatchUseCase(tuple)
 
             // 3. Risoluzione positiva: notifica server e utente
             if (isCompatible) {
+                Log.i("STRATEGY_MATCH", "3. MATCH POSITIVO! Salvo e Notifico.")
                 matchingRepo.saveMatchToDb(tuple.t1RequesterId, tuple.t2TargetId)
                 matchingRepo.notifyServerOfMatch(tuple.t1RequesterId, tuple.t2TargetId)
-                notificationHelper.showMatchNotification()
+                notificationHelper.showMatchNotification(isHelper = true)
+            } else {
+                Log.w("STRATEGY_MATCH", "3. MATCH SCARTATO: Distanza > Tolleranza oppure Errore Matematico.")
             }
         } catch (e: Exception) {
             Log.e("Strategy", "Errore durante l'elaborazione del match: ${e.message}")

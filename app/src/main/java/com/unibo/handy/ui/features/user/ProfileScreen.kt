@@ -63,14 +63,15 @@ fun ProfileContent(
         AlertDialog(
             onDismissRequest = { showLogoutDialog = false },
             icon = {
-                Icon(Icons.Default.Warning, contentDescription = "Attenzione", tint = MaterialTheme.colorScheme.error)
+                Icon(Icons.Default.Warning, contentDescription = "Attenzione", tint = Color.Red)
             },
             title = {
-                Text(text = "Sei sicuro di voler uscire?")
+                Text(text = "Sei sicuro di voler uscire?", color = Color.DarkGray)
             },
             text = {
                 Text(
-                    text = "Il logout comporterà la distruzione irreversibile della tua identità locale, inclusa tutta la cronologia delle chat e i match salvati in questo dispositivo. Vuoi procedere?"
+                    text = "Il logout comporterà la distruzione irreversibile della tua identità locale, inclusa tutta la cronologia delle chat e i match salvati in questo dispositivo. Vuoi procedere?",
+                    color = Color.DarkGray
                 )
             },
             confirmButton = {
@@ -81,16 +82,17 @@ fun ProfileContent(
                     },
                     colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
                 ) {
-                    Text("Sì, distruggi i dati ed esci")
+                    Text("Sì, distruggi i dati ed esci", color = Color.Red)
                 }
             },
             dismissButton = {
                 TextButton(
                     onClick = { showLogoutDialog = false }
                 ) {
-                    Text("Annulla")
+                    Text("Annulla", color = HandyPrimary)
                 }
-            }
+            },
+            containerColor = Color.White
         )
     }
 
@@ -143,18 +145,19 @@ fun ProfileContent(
                 Text(
                     "Profilo",
                     style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold
+                    fontWeight = FontWeight.Bold,
+                    color = HandyPrimary
                 )
 
                 Spacer(modifier = Modifier.height(24.dp))
 
-                Text("Gestione Account", modifier = Modifier.padding(8.dp))
+                Text("Gestione Account", modifier = Modifier.padding(8.dp), color = HandyPrimary)
                 HorizontalDivider(
                     color = Color.LightGray.copy(alpha = 0.3f),
                     thickness = 1.dp
                 )
 
-                Text("Privacy & Sicurezza", modifier = Modifier.padding(8.dp))
+                Text("Privacy & Sicurezza", modifier = Modifier.padding(8.dp), color = HandyPrimary)
                 HorizontalDivider(
                     color = Color.LightGray.copy(alpha = 0.3f),
                     thickness = 1.dp
@@ -174,9 +177,10 @@ fun ProfileContent(
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.Logout,
                         contentDescription = "Logout",
-                        modifier = Modifier.padding(end = 8.dp)
+                        modifier = Modifier.padding(end = 8.dp),
+                        tint = Color.Red
                     )
-                    Text("Logout")
+                    Text("Logout", color = Color.Red)
                 }
             }
         }

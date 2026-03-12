@@ -22,6 +22,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -113,7 +114,7 @@ fun HomeContent(
             Spacer(modifier = Modifier.width(8.dp))
             Column {
                 Text("Posizione Attuale", fontSize = 12.sp, color = Color.Gray)
-                Text("Bologna, Italia (Simulato)", fontWeight = FontWeight.Bold)
+                Text("Bologna, Italia (Simulato)", fontWeight = FontWeight.Bold, color = HandyPrimary)
             }
             Spacer(modifier = Modifier.weight(1f))
 
@@ -182,9 +183,8 @@ fun HomeContent(
                 },
                 text = {
                     Column {
-                        Text("Un Utente sta cercando aiuto vicino a te")
                         Spacer(modifier = Modifier.height(8.dp))
-                        Text(text = matchState.statusMessage)
+                        Text(text = matchState.statusMessage, color = Color.DarkGray)
                     }
                 },
 
@@ -195,15 +195,16 @@ fun HomeContent(
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = HandySecondary)
                     ) {
-                        Text("Accetta e Chatta")
+                        Text("Accetta e Chatta", color = Color.White)
                     }
                 },
                 dismissButton = {
                     TextButton(onClick = onDismissMatchPopup) {
-                        Text("Decidi dopo")
+                        Text("Decidi dopo", color = HandyPrimary)
                     }
                 },
-                icon = { Icon(Icons.Filled.Check, contentDescription = null, tint = HandyPrimary) }
+                icon = { Icon(Icons.Filled.Check, contentDescription = null, tint = Color(0xFF2E7D32)) },
+                containerColor = Color.White
             )
         }
     }
@@ -261,7 +262,7 @@ fun HelperView(
                 modifier = Modifier.fillMaxWidth().height(56.dp),
                 shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)
             ) {
-                Text("VAI ONLINE", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                Text("VAI ONLINE", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White)
             }
         } else {
             Spacer(modifier = Modifier.height(40.dp))
@@ -292,7 +293,7 @@ fun HelperView(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            Text("Si consiglia di entrare nell'app frequentemente per una ricerca più veloce")
+            Text("Si consiglia di entrare nell'app frequentemente per una ricerca più veloce", color = HandyPrimary)
         }
     }
 }
@@ -309,8 +310,9 @@ fun RequesterView(
     Column(modifier = Modifier.fillMaxWidth()) {
         Text(
             "Di cosa hai bisogno?",
+            modifier = Modifier.padding(bottom = 8.dp),
+            color = HandyPrimary,
             fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(bottom = 8.dp)
         )
 
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -332,12 +334,18 @@ fun RequesterView(
 
         Text(
             "Raggio di ricerca: ${searchRadius.toInt()} km",
+            color = HandyPrimary,
             fontWeight = FontWeight.Bold
         )
         Slider(
             value = searchRadius,
             onValueChange = onRadiusChange,
             valueRange = 1f..50f,
+            colors = SliderDefaults.colors(
+                thumbColor = HandyPrimary,
+                activeTrackColor = HandyPrimary,
+                inactiveTrackColor = Color(0xFFDDD2EA)
+            )
         )
 
         Spacer(modifier = Modifier.height(24.dp))
@@ -349,18 +357,18 @@ fun RequesterView(
             enabled = !isSearching,
             colors = ButtonDefaults.buttonColors(containerColor = HandySecondary),
             modifier = Modifier.fillMaxWidth().height(56.dp),
-            shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)
+            shape = RoundedCornerShape(12.dp)
         ) {
             if (isSearching) {
                 CircularProgressIndicator(
-                    color = Color.White,
+                    color = HandySecondary,
                     modifier = Modifier.size(24.dp),
                     strokeWidth = 2.dp
                 )
             } else {
-                Icon(Icons.Default.Search, contentDescription = null)
+                Icon(Icons.Default.Search, contentDescription = null, tint = Color.White)
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("Trova Aiuto Vicino a Me", fontSize = 18.sp)
+                Text("Trova Aiuto Vicino a Me", fontSize = 18.sp, color = Color.White)
             }
         }
     }

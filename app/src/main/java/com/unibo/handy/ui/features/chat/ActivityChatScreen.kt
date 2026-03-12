@@ -1,5 +1,6 @@
 package com.unibo.handy.ui.features.chat
 
+import android.R
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -47,6 +48,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.unibo.handy.data.db.entity.MatchEntity
 import com.unibo.handy.ui.theme.HandyPrimary
+import com.unibo.handy.ui.theme.HandySecondary
 import java.text.SimpleDateFormat
 import java.util.Locale
 
@@ -61,7 +63,7 @@ fun ActivityScreen(
         modifier = Modifier.fillMaxSize()
     ) {
         TopAppBar(
-            title = { Text("Le tue Attività", fontWeight = FontWeight.Bold) },
+            title = { Text("Le tue Attività", fontWeight = FontWeight.Bold, color = HandyPrimary) },
             colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
         )
 
@@ -71,6 +73,7 @@ fun ActivityScreen(
             }
         } else {
             LazyColumn(
+                modifier = Modifier.weight(1f),
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
@@ -84,8 +87,8 @@ fun ActivityScreen(
                 items(pendingMatches) { match ->
                     PendingMatchItem(
                         match = match,
-                        onAccept = { onAccept(match.requesterId) },
-                        onReject = { onReject(match.requesterId) }
+                        onAccept = { onAccept(match.matchId) },
+                        onReject = { onReject(match.matchId) }
                     )
                 }
             }
@@ -107,7 +110,7 @@ fun PendingMatchItem(match: MatchEntity, onAccept: () -> Unit, onReject: () -> U
                 }
                 Spacer(modifier = Modifier.width(12.dp))
                 Column {
-                    Text("Richiesta da ${match.username}", fontWeight = FontWeight.Bold)
+                    Text("Richiesta da ${match.username}", fontWeight = FontWeight.Bold, color = HandyPrimary)
                     Text("Categoria: ${match.category}", fontSize = 12.sp, color = Color.Gray)
                 }
             }
@@ -120,9 +123,9 @@ fun PendingMatchItem(match: MatchEntity, onAccept: () -> Unit, onReject: () -> U
                 }
                 Spacer(modifier = Modifier.width(8.dp))
                 Button(onClick = onAccept, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32))) {
-                    Icon(Icons.Default.Check, null, modifier = Modifier.size(16.dp))
+                    Icon(Icons.Default.Check, null, modifier = Modifier.size(16.dp), tint = Color.White)
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("Accetta")
+                    Text("Accetta", color = Color.White)
                 }
             }
         }
@@ -142,7 +145,7 @@ fun ChatListScreen(
 
     Column(modifier = Modifier.fillMaxSize()) {
         TopAppBar(
-            title = { Text("Messaggi", fontWeight = FontWeight.Bold) },
+            title = { Text("Messaggi", fontWeight = FontWeight.Bold, color = HandyPrimary) },
             colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
         )
 
@@ -172,6 +175,7 @@ fun ChatListScreen(
             }
         } else {
             LazyColumn(
+                modifier = Modifier.weight(1f),
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
@@ -188,7 +192,7 @@ fun ActiveChatItem(match: MatchEntity, onClick: (String) -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onClick(match.requesterId) }
+            .clickable { onClick(match.matchId) }
             .padding(vertical = 12.dp, horizontal = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -213,7 +217,8 @@ fun ActiveChatItem(match: MatchEntity, onClick: (String) -> Unit) {
             Text(
                 match.username,
                 style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
+                fontWeight = FontWeight.Bold,
+                color = HandyPrimary
             )
             Text(
                 text = "Tocca per chattare...",

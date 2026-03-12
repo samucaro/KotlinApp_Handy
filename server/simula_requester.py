@@ -4,7 +4,7 @@ import random
 import time
 from crypto_utils import P, PUB_N, mod_add, mod_sub, encrypt_paillier
 
-SERVER_URL = "http://127.0.0.1:8000"
+SERVER_URL = "http://10.47.101.63:8080"
 
 def trigger_android_app(category: str, tolerance_km: int):
     print(f"--- SIMULAZIONE REQUESTER (Target: App Android - Categoria: {category}) ---")
@@ -23,12 +23,12 @@ def trigger_android_app(category: str, tolerance_km: int):
     time.sleep(2)
     
     # 2. Creazione della Help-Request
-    req_x = 444900000  # Latitudine (es. Bologna in fixed point)
-    req_y = 113400000  # Longitudine
+    req_x = 432608780  # Latitudine (es. Bologna in fixed point)
+    req_y = 113822960  # Longitudine
     
     # Nel protocollo reale, il Requester usa il proprio CS Blur (^csr^q) per mascherare
     # Per il test mock, passiamo il rumore in chiaro al server che lo sommerà a R_GLOBAL
-    personalized_blur_r = random.randint(0, P - 1)
+    personalized_blur_r = 0#random.randint(0, P - 1)
     
     beta_plus_x = mod_add(req_x, personalized_blur_r)
     beta_plus_y = mod_add(req_y, personalized_blur_r)

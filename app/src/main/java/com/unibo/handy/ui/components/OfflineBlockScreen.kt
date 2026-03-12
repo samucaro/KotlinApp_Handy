@@ -1,5 +1,6 @@
 package com.unibo.handy.ui.components
 
+import android.R
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -90,7 +91,7 @@ fun OfflineBlockScreen(
             } else {
                 Icon(Icons.Default.Refresh, contentDescription = null)
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("Riprova Connessione")
+                Text("Riprova Connessione", color = Color.White)
             }
         }
     }

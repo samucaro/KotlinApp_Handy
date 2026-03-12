@@ -59,7 +59,7 @@ class WebSocketManager(private val client: OkHttpClient) {
 
     companion object {
         // Indirizzo di loopback per l'emulatore Android verso localhost
-        private const val WS_URL = "ws://10.0.2.2:8000/ws/"
+        private const val WS_URL = "ws://10.47.101.63:8080/ws/"//"ws://10.0.2.2:8080/ws/"
     }
 
     /**
@@ -141,6 +141,7 @@ class WebSocketManager(private val client: OkHttpClient) {
         }
 
         override fun onMessage(webSocket: WebSocket, text: String) {
+            Log.e("HandyWs", "HO RICEVUTO QUESTO DAL SERVER: $text")
             // tryEmit è non-bloccante, essenziale perché in un thread di OkHttp
             _incomingMessages.tryEmit(text)
         }

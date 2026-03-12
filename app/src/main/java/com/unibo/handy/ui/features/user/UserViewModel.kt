@@ -111,7 +111,7 @@ class UserViewModel @Inject constructor(
                         _uiState.update {
                             it.copy(
                                 isLoading = false,
-                                statusMessage = "Match fallito, nessun lavoratore disponibile. Aumenta il raggio."
+                                statusMessage = "Match fallito, nessun lavoratore disponibile. Aumenta il raggio e riprova."
                             )
                         }
                     }

@@ -39,6 +39,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.unibo.handy.ui.components.MessageBubble
+import com.unibo.handy.ui.theme.HandyPrimary
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -69,17 +70,18 @@ fun SingleChatScreen(
             TopAppBar(
                 title = {
                     Column {
-                        Text("Chat", fontWeight = FontWeight.Bold)
+                        Text("Chat", fontWeight = FontWeight.Bold, color = HandyPrimary)
 
                         Text(
                             "Utente ${matchId.take(4)}...",
-                            style = MaterialTheme.typography.bodySmall
+                            style = MaterialTheme.typography.bodySmall,
+                            color = HandyPrimary
                         )
                     }
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Indietro")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Indietro", tint = HandyPrimary)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
@@ -104,7 +106,10 @@ fun SingleChatScreen(
                         focusedContainerColor = Color.Transparent,
                         unfocusedContainerColor = Color.Transparent,
                         focusedIndicatorColor = Color.Transparent,
-                        unfocusedIndicatorColor = Color.Transparent
+                        unfocusedIndicatorColor = Color.Transparent,
+                        cursorColor = Color(0xFF006C75),
+                        focusedTextColor = Color.DarkGray,
+                        unfocusedTextColor = Color.DarkGray
                     )
                 )
                 IconButton(onClick = {

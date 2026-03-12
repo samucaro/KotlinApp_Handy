@@ -8,26 +8,44 @@ import java.security.SecureRandom
  * Permette operazioni matematiche su testi cifrati: E(a+b) = E(a)*E(b) mod n^2
  */
 object PaillierEncryption {
-    const val KEY_SIZE = 1024
+    const val KEY_SIZE = 2048
     val RANDOM_GENERATOR = SecureRandom()
+
+    // Struttura per contenere la chiave privata
+    data class PrivateKey(val phiN: BigInteger, val d: BigInteger)
 
     /**
      * Cifra un intero 'm' usando il modulo pubblico 'n'.
-     * Formula: c = (1 + n)^m * r^n mod n^2
+     * Formula: c = (1 + mN) * r^N mod N^2
      */
     fun encrypt(m: BigInteger, n: BigInteger): BigInteger {
         val r = BigInteger(KEY_SIZE, RANDOM_GENERATOR)
-        return (BigInteger.ONE + n).modPow(m, n*n) * r.modPow(n, n*n)
+        val nSquared = n * n
+
+        // (1 + mN)
+        val part1 = (BigInteger.ONE + m.multiply(n))
+        // r^N mod N^2
+        val part2 = r.modPow(n, nSquared)
+
+        return (part1 * part2).mod(nSquared)
     }
 
     /**
      * Decifra un ciphertext 'c' usando la chiave privata (lambda/mu) o la variante semplificata.
      */
-    fun decrypt(c: BigInteger, n: BigInteger, privateKey: BigInteger): BigInteger {
+    fun decrypt(c: BigInteger, n: BigInteger, privateKey: PrivateKey): BigInteger {
+        val nSquared = n * n
 
-        val r = c.modPow(privateKey, n)
+        // Primo passo: C1 = c^phi(N) mod N^2
+        val step1 = c.modPow(privateKey.phiN, nSquared)
 
-        return ((c*r.modPow(-n, n*n) - BigInteger.ONE)/n).mod(n)
+        // Secondo passo: C = C1^d mod N^2 = (1 + mN) mod N^2
+        val step2 = step1.modPow(privateKey.d, nSquared)
+
+        // Terzo passo: m = (C - 1) / N
+        val m = (step2 - BigInteger.ONE).divide(n)
+
+        return m
     }
 
     /**
@@ -47,19 +65,25 @@ object PaillierEncryption {
      *
      * @return Coppia: Public Key (n) e Private Key.
      */
-    fun keygen(): Pair<BigInteger, BigInteger> {
+    fun keygen(keyBits: Int = KEY_SIZE): Pair<BigInteger, PrivateKey> {
 
-        var p = BigInteger(KEY_SIZE, RANDOM_GENERATOR)
+        var p = BigInteger(keyBits/2, RANDOM_GENERATOR)
         while (!fermatPrimalityTest(p))
             p = p.nextProbablePrime()
 
-        var q = BigInteger(KEY_SIZE, RANDOM_GENERATOR)
+        var q = BigInteger(keyBits/2, RANDOM_GENERATOR)
         while (!fermatPrimalityTest(q))
             q = q.nextProbablePrime()
 
         val n = p * q
-        val phiN = (p - BigInteger.ONE) * (q - BigInteger.ONE)
-        val privateKey = n.modInverse(phiN)
+
+        val pMinusOne = p - BigInteger.ONE
+        val qMinusOne = q - BigInteger.ONE
+        val phiN = pMinusOne * qMinusOne
+
+        val d = phiN.modInverse(n)
+
+        val privateKey = PrivateKey(phiN, d)
 
         return Pair(n, privateKey)
     }

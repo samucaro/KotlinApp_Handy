@@ -20,6 +20,7 @@ class ComputeMatchUseCase @Inject constructor(
     suspend operator fun invoke(
         tupla: TupleDTO
     ): Boolean = withContext(Dispatchers.IO) {
+
         val privateKey = secureKeyRepository.getPrivateKey() ?: throw Exception("Chiave privata mancante")
         val modulus = secureKeyRepository.getPublicModulus() ?: throw Exception("Modulo pubblico mancante")
 
@@ -33,7 +34,7 @@ class ComputeMatchUseCase @Inject constructor(
 
         return@withContext try {
             // Esecuzione del controllo crittografico sulla distanza
-            PrivacyEngine.computeMatching(
+            val result = PrivacyEngine.computeMatching(
                 t3x = tupla.t3BetaPlusX,
                 t3y = tupla.t3BetaPlusY,
                 t4 = tupla.t4SumUserBlur,
@@ -44,7 +45,11 @@ class ComputeMatchUseCase @Inject constructor(
                 privateKey = privateKey,
                 n = modulus
             )
-        } catch (_: Exception) {
+            Log.d("STRATEGY_MATCH", "Risultato crittografico dal Privacy Engine: $result")
+            Log.d("STRATEGY_MATCH", "Modulo: $modulus")
+            result
+        } catch (e: Exception) {
+            Log.e("STRATEGY_MATCH", "CRASH Matematico nel PrivacyEngine: ${e.message}", e)
             false
         }
     }

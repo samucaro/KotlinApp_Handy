@@ -82,7 +82,7 @@ object PrivacyEngine {
         t6: String, // E(Tolleranza)
         storedX: Long, // β- (Coordinate ri-offuscate dell'helper)
         storedY: Long,
-        privateKey: BigInteger,
+        privateKey: PaillierEncryption.PrivateKey,
         n: BigInteger
     ): Boolean = withContext(Dispatchers.Default) {
 
@@ -90,23 +90,23 @@ object PrivacyEngine {
         val t4Decrypted = PaillierEncryption.decrypt(BigInteger(t4), n, privateKey).toLong()
         val toleranceDecrypted = PaillierEncryption.decrypt(BigInteger(t6), n, privateKey).toLong()
 
-        // 2. CALCOLO ASSE X (Annullamento dei rumori sul campo finito Zp)
-        val rawDiffX = modSub(t3x, storedX)
-        var cleanDeltaX = modSub(rawDiffX, t4Decrypted)
-        cleanDeltaX = modSub(cleanDeltaX, t5)
+        val totalNoiseAndOffset = modAdd(t4Decrypted, t5)
+
+        // 2. CALCOLO ASSE X (T3 - (Stored + Rumori_Totali))
+        val valueToSubtractX = modAdd(storedX, totalNoiseAndOffset)
+        val cleanDeltaX = modSub(t3x, valueToSubtractX)
         val metricX = minMetricDistance(cleanDeltaX)
 
         // 3. CALCOLO ASSE Y
-        val rawDiffY = modSub(t3y, storedY)
-        var cleanDeltaY = modSub(rawDiffY, t4Decrypted)
-        cleanDeltaY = modSub(cleanDeltaY, t5)
+        val valueToSubtractY = modAdd(storedY, totalNoiseAndOffset)
+        val cleanDeltaY = modSub(t3y, valueToSubtractY)
         val metricY = minMetricDistance(cleanDeltaY)
 
         // 4. CALCOLO DISTANZA EUCLIDEA
         val distSquared = (metricX * metricX) + (metricY * metricY)
         val distance = sqrt(distSquared.toDouble())
 
-        Log.d("HandyCrypto", "Distance calculated: $distance | Decrypted tolerance: $toleranceDecrypted")
+        Log.e("STRATEGY_MATCH", "Distance calculated: $distance | Decrypted tolerance: $toleranceDecrypted")
 
         // 5. VERIFICA SOGLIA ---
         distance <= toleranceDecrypted
